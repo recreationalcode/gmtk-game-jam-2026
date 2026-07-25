@@ -36,8 +36,8 @@ export const SIM = {
 // ---------------------------------------------------------------------------
 // Pogo physics
 //
-// Derived so a lazy bounce lasts ~1.2s, peaks ~4.2m above the floor, and covers
-// about four tiles. At that apex the lens sees most of the floor; at the bottom
+// Derived so a lazy bounce lasts ~1.35s, peaks ~4.8m above the floor, and
+// covers about four and a half tiles. At that apex the lens sees most of the floor; at the bottom
 // of the arc it sees barely one tile. That gap is the game: you plan at the top
 // and commit at the bottom, and buying altitude buys information.
 // ---------------------------------------------------------------------------
@@ -48,10 +48,21 @@ export const POGO = {
    * only covered a couple of tiles, which made the whole board feel out of
    * reach; the arc is the thinking time, so shortening it removes the game.
    */
-  gravity: 24.0,
+  gravity: 21.0,
 
   /** Apex height above the floor for an uncharged bounce, metres. */
-  baseApex: 4.2,
+  baseApex: 4.8,
+
+  /**
+   * Height the rider falls in from at the start of a run, metres.
+   *
+   * Starting on the ground mid-bounce threw the player straight into a landing
+   * with no idea what was on the board. Dropping in from above opens on a wide
+   * establishing shot of the whole floor that closes as you fall — and the fog
+   * makes the floor resolve out of the dark on the way down rather than simply
+   * being there.
+   */
+  startDropHeight: 11.0,
   /** Apex multiplier for a charged (well-timed) bounce. */
   chargedApexScale: 1.55,
   /** Apex multiplier for a frame-perfect bounce. */
@@ -66,7 +77,14 @@ export const POGO = {
    * instead of the one-to-two that made every floor feel like a cage.
    */
   airAccel: 30.0,
-  airMaxSpeed: 8.0,
+  /**
+   * Trimmed when the arc was lengthened. Airtime and top speed multiply into
+   * reach, so leaving this at 8 turned a longer bounce into a 5.3-tile one that
+   * overshot the whole starting floor and spent its time against the soft
+   * boundary. Lower speed over a longer arc keeps the generous reach while
+   * making the motion float rather than dart.
+   */
+  airMaxSpeed: 7.0,
 
   /**
    * Late-arc steering assist.

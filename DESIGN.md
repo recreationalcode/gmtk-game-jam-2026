@@ -50,12 +50,22 @@ bounce ─▶ steer in the air ─▶ pick a tile ─▶ land ─▶ tile effect
                                         …until the clock hits 0
 ```
 
-A single bounce is ~1.2s of hang time and covers about four tiles (five and a
-half if charged). That's the game's heartbeat and every decision fits inside it.
+A single bounce is ~1.35s of hang time and covers about 4.7 tiles (5.9 if
+charged). That's the game's heartbeat and every decision fits inside it.
 
-An earlier, snappier 0.9s bounce only reached one or two tiles, and playtesting
-killed it immediately: the arc *is* the thinking time, and a board you cannot
-reach across is a board you cannot make plans about.
+Two rounds of playtesting set that number. An early, snappier 0.9s bounce
+reached one or two tiles: the arc *is* the thinking time, and a board you
+cannot reach across is a board you cannot plan on. Lengthening it further to
+1.35s then over-extended the reach to 5.3 tiles — past the width of the whole
+opening floor — so top speed came down with it. Airtime and speed multiply into
+reach, and the goal was a bounce that *floats*, not one that darts.
+
+**The run opens on a drop.** The rider falls in from 11m rather than starting
+mid-bounce on the ground, and the clock is held until the first landing. That
+buys a second of wide establishing shot with the whole floor legible and the
+down tile's multiplier already readable — the difference between starting a run
+and being thrown into one. Everyone gets the same grace, so it costs nothing in
+leaderboard terms.
 
 ## 3. Movement & controls
 

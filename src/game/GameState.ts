@@ -85,6 +85,12 @@ export class GameState {
   shake = 0;
 
   endgame = false;
+  /**
+   * The clock is held until the first landing, so the opening drop is time to
+   * read the board rather than time being spent. Everyone gets the same grace,
+   * so it costs nothing in leaderboard terms.
+   */
+  private clockStarted = false;
   private lastWholeSecond = Math.ceil(CLOCK.matchSeconds);
 
   /** The floor currently playing its dissolve-out animation, if any. */
@@ -157,6 +163,7 @@ export class GameState {
     this.hitstop = 0;
     this.shake = 0;
     this.endgame = false;
+    this.clockStarted = false;
     this.lastWholeSecond = Math.ceil(CLOCK.matchSeconds);
     this.dissolving = null;
     this.dissolveLeft = 0;
@@ -231,6 +238,7 @@ export class GameState {
   }
 
   private advanceClock(dt: number): void {
+    if (!this.clockStarted) return;
     this.timeLeft -= dt;
 
     const whole = Math.ceil(this.timeLeft);
@@ -259,6 +267,7 @@ export class GameState {
   // -- landing resolution --------------------------------------------------
 
   private resolveLanding(x: number, z: number, speed: number, quality: BounceQuality): void {
+    this.clockStarted = true;
     const floor = this.floor;
     const tile = floor.tileAtWorld(x, z);
     tile.flash = 1;

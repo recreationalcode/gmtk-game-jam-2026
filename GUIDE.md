@@ -1,7 +1,8 @@
 # Pogo Drop — Player Guide
 
 You are strapped to a pogo stick, looking straight down. You cannot stop
-bouncing. You have **60 seconds**.
+bouncing. You have **60 seconds** — and the clock does not start until you land,
+so use the opening drop to read the board.
 
 ---
 

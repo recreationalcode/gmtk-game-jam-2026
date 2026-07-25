@@ -60,9 +60,10 @@ export class Player {
     this.x = 0;
     this.z = 0;
     this.floorY = floorY;
-    this.y = floorY;
+    // Fall in from height rather than starting mid-bounce on the ground.
+    this.y = floorY + POGO.startDropHeight;
     this.vx = 0;
-    this.vy = launchSpeed(POGO.baseApex);
+    this.vy = 0;
     this.vz = 0;
     this.compression = 0;
     this.compressionVel = 0;
