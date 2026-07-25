@@ -19,8 +19,18 @@ export function depthHue(depth: number): number {
 
 const scratch = new THREE.Color();
 
+/**
+ * HSL in **sRGB**, which is the only sensible reading of "lightness 0.62".
+ *
+ * `Color.setHSL` defaults its colour space to the *working* space (linear),
+ * unlike `setHex` and `setStyle` which default to sRGB. Omitting the argument
+ * therefore treats authored lightness as a linear value and produces a colour
+ * roughly twelve times brighter than intended — which showed up here as a
+ * washed-out bloom, tiles that clipped far too easily, and an endgame
+ * background that turned the whole screen pink.
+ */
 export function hsl(h: number, s: number, l: number, target = scratch): THREE.Color {
-  return target.setHSL(((h % 360) + 360) / 360, s, l);
+  return target.setHSL(((h % 360) + 360) / 360, s, l, THREE.SRGBColorSpace);
 }
 
 /**
@@ -63,12 +73,13 @@ export function tileColor(
   }
 }
 
+const warmScratch = new THREE.Color();
+
 /** Background colour, pushed toward red once the endgame starts. */
 export function backgroundColor(endgameIntensity: number, target = new THREE.Color()): THREE.Color {
   target.setHex(PALETTE.background);
   if (endgameIntensity > 0) {
-    const warm = new THREE.Color().setHSL(PALETTE.hostileHue / 360, 0.7, 0.06);
-    target.lerp(warm, clamp01(endgameIntensity));
+    target.lerp(hsl(PALETTE.hostileHue, 0.75, 0.05, warmScratch), clamp01(endgameIntensity));
   }
   return target;
 }

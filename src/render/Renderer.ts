@@ -4,7 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { BLOOM, QUALITY, type QualitySettings } from '../core/Config';
+import { BLOOM, DEV_OVERRIDES, QUALITY, type QualitySettings } from '../core/Config';
 import { clamp01 } from '../core/MathUtil';
 
 /**
@@ -29,7 +29,7 @@ export class Renderer {
   private height = 1;
 
   constructor(canvas: HTMLCanvasElement, camera: THREE.Camera, forcedTier?: QualitySettings['name']) {
-    this.quality = QUALITY[forcedTier ?? detectTier()];
+    this.quality = QUALITY[forcedTier ?? DEV_OVERRIDES.tier ?? detectTier()];
 
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -45,6 +45,7 @@ export class Renderer {
     // right up to clipping, and ACES turns every bright colour toward white.
     this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.setClearColor(0x05060a, 1);
+    this.renderer.info.autoReset = false;
 
     this.composer = new EffectComposer(this.renderer);
     this.renderPass = new RenderPass(this.scene, camera);
@@ -114,6 +115,10 @@ export class Renderer {
   }
 
   render(): void {
+    // `renderer.info` resets on every internal render call, so with a post
+    // chain it would only ever report the final fullscreen blit. Resetting
+    // manually once per frame makes the stats overlay count the whole frame.
+    this.renderer.info.reset();
     this.composer.render();
   }
 
@@ -180,7 +185,7 @@ const GradeShader = {
       if (uAberration > 0.001) {
         // Separation grows with distance from centre, so the edges of the
         // screen fray while the tile you are aiming at stays readable.
-        vec2 dir = centred * uAberration * 0.02 * (0.3 + r2 * 2.0);
+        vec2 dir = centred * uAberration * 0.008 * (0.3 + r2 * 2.0);
         col.r = texture2D(tDiffuse, vUv + dir).r;
         col.g = texture2D(tDiffuse, vUv).g;
         col.b = texture2D(tDiffuse, vUv - dir).b;

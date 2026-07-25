@@ -275,7 +275,11 @@ export class Screens {
     this.cb.onRefreshBoard();
   }
 
-  setSubmitState(state: 'idle' | 'sending' | 'done' | 'failed', message = ''): void {
+  setSubmitState(
+    state: 'idle' | 'sending' | 'done' | 'failed',
+    message = '',
+    doneLabel = 'Submitted',
+  ): void {
     switch (state) {
       case 'sending':
         this.submitButton.disabled = true;
@@ -283,7 +287,7 @@ export class Screens {
         break;
       case 'done':
         this.submitButton.disabled = true;
-        this.submitButton.textContent = 'Submitted';
+        this.submitButton.textContent = doneLabel;
         break;
       case 'failed':
         this.submitButton.disabled = false;

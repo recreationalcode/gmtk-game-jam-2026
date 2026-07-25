@@ -34,12 +34,26 @@ npm run package      # build + verified itch.io zip in build/
 | `npm run preview` | Serve `dist/` |
 | `npm run package` | Build, verify the layout, and zip for itch.io |
 | `npm run smoke` | Headless Chromium: boot, play, screenshot, report errors |
+| `npm run fullrun` | Headless full match: endgame ramp → score screen → submit |
+| `npm run diag` | Screenshot the procedural glyphs, dump floor balance per depth |
 
-`npm run smoke` needs a `npm run preview` running in another shell. It plays the
-built game, captures screenshots in portrait and landscape, and fails on any
-uncaught page error. Two of this project's worst bugs — an inverted texture
-atlas and a lens that collapsed in portrait — were invisible to the type checker
-and obvious in a screenshot, which is why it exists.
+`npm run smoke` needs `npm run preview` running in another shell; `npm run
+fullrun` needs `npm run dev`, because it uses the dev-only `?matchSeconds=`
+override to finish a match in seconds (production strips it, so a shipped
+`?matchSeconds=600` can't be used to farm the leaderboard).
+
+These exist because the bugs that cost the most here were all invisible to the
+type checker and obvious in a screenshot: a texture atlas whose rows were
+inverted by `flipY`, a lens that collapsed to a 38° horizontal view in portrait,
+and `Color.setHSL` defaulting to the *linear* working space rather than sRGB —
+which made every colour in the game about twelve times too bright and turned the
+endgame screen flat pink.
+
+Dev-only affordances, all stripped from production by `import.meta.env.DEV`:
+`?matchSeconds=`, `?tier=low|medium|high`, and a `window.pogo` inspection
+handle. **F3** toggles a frame-budget overlay (fps, draw calls, triangles) and
+ships in the real build, because the only performance numbers that matter are
+the ones measured on the device someone is actually holding.
 
 `debug.html` (dev server only, never built) previews the procedural glyphs and
 dumps floor composition per depth.

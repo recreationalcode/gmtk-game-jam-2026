@@ -10,6 +10,10 @@ export interface LeaderboardEntry {
 
 export type BoardSource = 'simpleboards' | 'local';
 
+export type SubmitResult =
+  | { ok: true; source: BoardSource }
+  | { ok: false; error: string };
+
 export interface BoardResult {
   entries: LeaderboardEntry[];
   source: BoardSource;
@@ -75,12 +79,15 @@ export class Leaderboard {
    * configured. Never throws — a failed submission must not eat the score
    * screen.
    */
-  async submit(name: string, summary: RunSummary): Promise<{ ok: boolean; error?: string }> {
+  async submit(name: string, summary: RunSummary): Promise<SubmitResult> {
     const clean = sanitiseName(name);
     this.storeName(clean);
     this.writeLocal(clean, summary.score);
 
-    if (!this.config) return { ok: false, error: 'Leaderboard not configured' };
+    // No remote board configured is a success, not a failure — the score really
+    // was saved. Reporting it as an error offers the player a "retry" that
+    // cannot possibly do anything.
+    if (!this.config) return { ok: true, source: 'local' };
 
     try {
       const res = await this.request(`${this.config.baseUrl}/api/entries`, {
@@ -105,7 +112,7 @@ export class Leaderboard {
       });
 
       if (!res.ok) return { ok: false, error: `Submit failed (${res.status})` };
-      return { ok: true };
+      return { ok: true, source: 'simpleboards' };
     } catch (err) {
       return { ok: false, error: describeError(err) };
     }

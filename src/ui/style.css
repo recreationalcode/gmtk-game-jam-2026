@@ -568,6 +568,23 @@ kbd {
   display: none !important;
 }
 
+/* F3 frame-budget readout. Never visible unless asked for. */
+#stats {
+  position: absolute;
+  top: calc(var(--safe-top) + 0.5rem);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.5rem 0.7rem;
+  background: #000000cc;
+  border: 1px solid var(--accent-dim);
+  color: var(--accent);
+  font-size: 0.68rem;
+  line-height: 1.5;
+  white-space: pre;
+  pointer-events: none;
+  z-index: 5;
+}
+
 /* Rotate hint for very short landscape viewports on phones */
 #rotate-hint {
   position: absolute;

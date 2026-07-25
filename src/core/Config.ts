@@ -15,8 +15,20 @@
 export const SIM = {
   /** Fixed simulation rate. Physics must not vary between a 60Hz and 144Hz screen. */
   hz: 120,
-  /** Never simulate more than this many steps in one frame (tab-switch guard). */
-  maxStepsPerFrame: 8,
+  /**
+   * Ceiling on fixed steps per rendered frame, so a stalled tab cannot come
+   * back and simulate ten thousand steps at once.
+   *
+   * It also sets the frame rate below which the game deliberately runs in slow
+   * motion rather than dropping simulation: 20 steps at 120Hz is 167ms of
+   * simulation per frame, so everything stays real-time down to ~6fps. Slowing
+   * down is the right failure mode for a score attack — the alternative is
+   * skipping physics, which would teleport the player through tiles.
+   *
+   * This was 8, which capped the sim at 67ms per frame and quietly ran the
+   * match clock at a third speed under software rendering.
+   */
+  maxStepsPerFrame: 20,
   /** Clamp on wall-clock delta, seconds. Prevents a spiral of death after a stall. */
   maxFrameDelta: 0.25,
 } as const;
@@ -216,13 +228,42 @@ export const SCORE = {
   descendBonus: 25,
 } as const;
 
-export const CLOCK = {
+export const CLOCK: { matchSeconds: number; endgameSeconds: number; maxSeconds: number } = {
   matchSeconds: 60,
   /** Below this the game enters its endgame presentation state. */
   endgameSeconds: 10,
   /** Hard ceiling so time tiles can't run away with the match. */
   maxSeconds: 120,
-} as const;
+};
+
+/**
+ * Dev-only match-length override, so the endgame ramp and the score screen can
+ * be reached in seconds instead of a full minute.
+ *
+ * `import.meta.env.DEV` is substituted at build time, so this whole block is
+ * dead code in a production bundle — a shipped `?matchSeconds=600` would
+ * otherwise be a one-line leaderboard exploit.
+ */
+export const DEV_OVERRIDES: { tier: QualitySettings['name'] | null } = { tier: null };
+
+export function applyDevOverrides(search: string): void {
+  if (!import.meta.env.DEV) return;
+  const params = new URLSearchParams(search);
+
+  const seconds = Number(params.get('matchSeconds'));
+  if (Number.isFinite(seconds) && seconds >= 3 && seconds <= 600) {
+    CLOCK.matchSeconds = seconds;
+    CLOCK.endgameSeconds = Math.min(CLOCK.endgameSeconds, Math.max(2, seconds * 0.35));
+  }
+
+  const tier = params.get('tier');
+  if (tier === 'low' || tier === 'medium' || tier === 'high') DEV_OVERRIDES.tier = tier;
+}
+
+/** Honour the OS "reduce motion" setting for shake and screen distortion. */
+export function prefersReducedMotion(): boolean {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+}
 
 // ---------------------------------------------------------------------------
 // Camera & feel
@@ -332,8 +373,18 @@ export interface QualitySettings {
  * turns to milk — which is exactly what a low threshold did on the first pass.
  */
 export const BLOOM = {
-  threshold: 0.55,
-  radius: 0.45,
+  /**
+   * Threshold is in the linear working space, where an sRGB "bright neon line"
+   * around 0.85 lands near 0.68 — so this sits just under the glowing strokes
+   * and well above the dark tile fill.
+   */
+  threshold: 0.32,
+  /**
+   * Kept tight. UnrealBloomPass's widest mip smears glow across the entire
+   * frame, which lifts the blacks and undoes the "dark void" the art direction
+   * depends on. Local glow, not atmosphere.
+   */
+  radius: 0.3,
 } as const;
 
 export const QUALITY: Record<QualitySettings['name'], QualitySettings> = {

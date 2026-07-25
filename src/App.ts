@@ -8,6 +8,7 @@ import {
   POGO,
   SIM,
   TileKind,
+  prefersReducedMotion,
 } from './core/Config';
 import { Input } from './core/Input';
 import { clamp, clamp01, formatScore, lerp } from './core/MathUtil';
@@ -22,6 +23,7 @@ import { Renderer } from './render/Renderer';
 import { TileField } from './render/TileField';
 import { HUD } from './ui/HUD';
 import { Screens } from './ui/Screens';
+import { Stats } from './ui/Stats';
 
 type AppPhase = 'title' | 'playing' | 'paused' | 'over';
 
@@ -37,7 +39,8 @@ const STEP = 1 / SIM.hz;
  * without any risk of changing what actually happened in a run.
  */
 export class App {
-  private readonly game = new GameState();
+  /** Public for the dev-only inspection handle installed by main.ts. */
+  readonly game = new GameState();
   private readonly audio = new AudioEngine();
   private readonly leaderboard = new Leaderboard();
 
@@ -46,6 +49,14 @@ export class App {
   private readonly rig: PlayerRig;
   private readonly hud: HUD;
   private readonly screens: Screens;
+  private readonly stats: Stats;
+
+  /**
+   * Scales every camera shake, chromatic separation and screen flash. Motion
+   * sensitivity is a real accessibility need and this game is built almost
+   * entirely out of the things that trigger it.
+   */
+  private readonly motionScale: number;
 
   private readonly fieldMain: TileField;
   private readonly fieldDissolving: TileField;
@@ -93,7 +104,9 @@ export class App {
       this.guides.group,
     );
 
+    this.motionScale = prefersReducedMotion() ? 0.25 : 1;
     this.hud = new HUD(uiRoot);
+    this.stats = new Stats(uiRoot);
     this.screens = new Screens(uiRoot, {
       onPlay: () => this.startRun(),
       onResume: () => this.resume(),
@@ -215,6 +228,18 @@ export class App {
 
     this.present(dt);
     this.renderer.render();
+
+    this.stats.update(dt, this.renderer.renderer, {
+      tier: this.renderer.quality.name,
+      dpr: this.renderer.devicePixelRatioUsed.toFixed(2),
+      phase: this.phase,
+      depth: this.game.depth,
+      eye: (this.game.player.eyeY - this.game.floor.y).toFixed(2),
+      vy: this.game.player.vy.toFixed(1),
+      flash: this.flash.toFixed(2),
+      endg: this.endgameIntensity.toFixed(2),
+      shake: this.game.shake.toFixed(2),
+    });
   };
 
   private simulate(now: number, dt: number): void {
@@ -406,7 +431,12 @@ export class App {
       Math.min(1, dt * 3),
     );
 
-    this.rig.update(dt, game.player, game.shake, this.endgameIntensity);
+    this.rig.update(
+      dt,
+      game.player,
+      game.shake * this.motionScale,
+      this.endgameIntensity * this.motionScale,
+    );
     this.rig.setAccent(this.accent);
 
     this.fieldMain.sync(floor, this.clock);
@@ -464,9 +494,9 @@ export class App {
     );
     this.renderer.setGrade(
       0.34 + this.endgameIntensity * 0.3,
-      this.endgameIntensity * 0.85,
+      this.endgameIntensity * 0.85 * this.motionScale,
       this.tint,
-      this.flash,
+      this.flash * this.motionScale,
     );
     this.renderer.setBloomStrength(
       this.renderer.quality.bloomStrength * (1 + this.endgameIntensity * 0.5),
@@ -533,9 +563,13 @@ export class App {
     const result = await this.leaderboard.submit(name, this.game.summary);
     if (result.ok) {
       this.submitted = true;
-      this.screens.setSubmitState('done', 'Score submitted.');
+      this.screens.setSubmitState(
+        'done',
+        result.source === 'local' ? 'Saved on this device.' : 'Score submitted.',
+        result.source === 'local' ? 'Saved' : 'Submitted',
+      );
     } else {
-      this.screens.setSubmitState('failed', result.error ?? 'Submit failed.');
+      this.screens.setSubmitState('failed', result.error);
     }
     await this.refreshBoard();
     this.screens.setPersonalBest(this.leaderboard.personalBest);

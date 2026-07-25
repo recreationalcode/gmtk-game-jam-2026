@@ -1,5 +1,6 @@
 import './ui/style.css';
 import { App } from './App';
+import { applyDevOverrides } from './core/Config';
 
 /**
  * Bootstrap. Kept deliberately thin: find the canvas, check WebGL, hand off.
@@ -66,9 +67,15 @@ function boot(): void {
   }
 
   try {
+    applyDevOverrides(window.location.search);
     document.getElementById('boot')?.remove();
     const app = new App(canvas, ui);
     app.start();
+    // Dev-only inspection handle for the headless test scripts. Stripped from
+    // production bundles, where `import.meta.env.DEV` is substituted as false.
+    if (import.meta.env.DEV) {
+      (window as unknown as { pogo: App }).pogo = app;
+    }
   } catch (err) {
     console.error(err);
     fail(
