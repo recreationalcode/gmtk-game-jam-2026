@@ -161,6 +161,7 @@ export class App {
     this.hud.setEndgame(false);
     this.hud.setVisible(true);
     this.guides.setVisible(true);
+    this.guides.resetLock();
     this.setAccent(0);
     this.screens.show(null);
     this.input.setEnabled(true);
@@ -381,6 +382,7 @@ export class App {
     this.audio.descend(e.depth);
     this.audio.multiplierUp(this.game.multiplier);
     this.setAccent(e.depth);
+    this.guides.resetLock();
     this.flash = Math.max(this.flash, 0.1);
 
     // Gaining a multiplier is the biggest thing that happens in a run — it is
@@ -400,6 +402,7 @@ export class App {
   private onAscend(e: Extract<GameEvent, { type: 'ascend' }>): void {
     this.audio.ascend();
     this.setAccent(e.depth);
+    this.guides.resetLock();
     const hostile = hsl(PALETTE.hostileHue, 0.82, 0.55).clone();
     this.popupAt(`×${this.game.multiplier}`, e.x, e.z, 'hostile');
     this.ring(e.x, e.z, 16, 0.7, hostile, 0.05);
@@ -487,6 +490,7 @@ export class App {
         this.perfectFlash,
         this.clock,
       );
+      if (this.guides.consumeLockChanged()) this.audio.lockTick();
       const preview = game.previewGeometry;
       this.guides.updatePreview(preview.side, preview.extent, preview.y, this.accent);
       // The floor below fades in as you climb, so the hint appears exactly when

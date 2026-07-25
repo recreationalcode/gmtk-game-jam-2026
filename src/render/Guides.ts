@@ -33,6 +33,13 @@ export class Guides {
   private readonly dropPoints = [new THREE.Vector3(), new THREE.Vector3()];
   private previewKey = '';
 
+  /** Which tile the reticle is currently locked onto, and the snap animation. */
+  private lockGX = -1;
+  private lockGY = -1;
+  private lockPulse = 0;
+  private lockChanged = false;
+  private lastTime = -1;
+
   constructor() {
     this.squareMat = new THREE.LineBasicMaterial({ transparent: true, depthWrite: false });
     this.ringMat = new THREE.LineBasicMaterial({ transparent: true, depthWrite: false });
@@ -104,13 +111,31 @@ export class Guides {
     const cz = floor.worldZ(gy);
     const y = floor.y + 0.06;
 
+    // Snap animation on acquiring a different tile. Without it the reticle
+    // teleports silently and a deliberate re-aim looks the same as jitter.
+    const dt = this.lastTime < 0 ? 0 : clamp01(time - this.lastTime);
+    this.lastTime = time;
+    this.lockPulse = Math.max(0, this.lockPulse - dt * RETICLE.lockPulseDecay);
+    this.lockChanged = false;
+    if (gx !== this.lockGX || gy !== this.lockGY) {
+      this.lockChanged = this.lockGX >= 0;
+      this.lockGX = gx;
+      this.lockGY = gy;
+      this.lockPulse = 1;
+    }
+    // Quadratic falloff settles fast, which is what makes it read as a snap
+    // rather than a wobble.
+    const snap = this.lockPulse * this.lockPulse;
+
     this.square.position.set(cx, y, cz);
-    this.square.scale.setScalar(floor.tileSize * 1.06);
+    this.square.scale.setScalar(floor.tileSize * 1.06 * (1 + snap * RETICLE.lockPulseScale));
 
     // Ring converges on the square exactly at touchdown, but stays tile-scoped
     // the whole way so it always reads as pointing at one specific tile.
     const lead = clamp01(timeToImpact / RETICLE.ringLead);
-    const ringScale = floor.tileSize * lerp(RETICLE.ringMinScale, RETICLE.ringMaxScale, lead);
+    const ringScale =
+      floor.tileSize * lerp(RETICLE.ringMinScale, RETICLE.ringMaxScale, lead) *
+      (1 + snap * RETICLE.lockPulseScale * 0.6);
     this.ring.position.set(cx, y + 0.01, cz);
     this.ring.scale.setScalar(ringScale);
 
@@ -124,12 +149,18 @@ export class Guides {
 
     // Opacity is the only real lever on bloom here: a saturated accent puts two
     // channels near full, so the line clears the bloom threshold at any width.
-    this.ringMat.opacity = RETICLE.ringOpacityBase + closeness * RETICLE.ringOpacityGain;
-    this.ringMat.color.copy(accent).lerp(WHITE, 0.2 + closeness * 0.4 + perfectFlash * 0.4);
+    this.ringMat.opacity =
+      RETICLE.ringOpacityBase + closeness * RETICLE.ringOpacityGain + snap * 0.3;
+    this.ringMat.color
+      .copy(accent)
+      .lerp(WHITE, clamp01(0.2 + closeness * 0.4 + perfectFlash * 0.4 + snap * 0.5));
 
     this.squareMat.opacity =
-      RETICLE.squareOpacityBase + closeness * RETICLE.squareOpacityGain + perfectFlash * 0.2;
-    this.squareMat.color.copy(accent).lerp(WHITE, perfectFlash * 0.6);
+      RETICLE.squareOpacityBase +
+      closeness * RETICLE.squareOpacityGain +
+      perfectFlash * 0.2 +
+      snap * 0.4;
+    this.squareMat.color.copy(accent).lerp(WHITE, clamp01(perfectFlash * 0.6 + snap * 0.7));
 
     this.dropPoints[0]!.set(playerX, playerY, playerZ);
     this.dropPoints[1]!.set(landX, floor.y + 0.02, landZ);
@@ -137,6 +168,24 @@ export class Guides {
     this.dropLine.geometry.attributes.position!.needsUpdate = true;
     this.dropMat.color.copy(accent);
     this.dropMat.opacity = 0.13 + closeness * 0.12;
+  }
+
+  /**
+   * True on the frame the reticle acquired a different tile. Read once per
+   * frame by the app, which turns it into a targeting tick.
+   */
+  consumeLockChanged(): boolean {
+    const changed = this.lockChanged;
+    this.lockChanged = false;
+    return changed;
+  }
+
+  /** Forget the current lock, so a new floor does not inherit the old one. */
+  resetLock(): void {
+    this.lockGX = -1;
+    this.lockGY = -1;
+    this.lockPulse = 0;
+    this.lockChanged = false;
   }
 
   /** Dim wireframe of the floor one level down, so depth reads as depth. */

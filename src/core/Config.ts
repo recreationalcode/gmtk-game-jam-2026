@@ -67,6 +67,25 @@ export const POGO = {
    */
   airAccel: 30.0,
   airMaxSpeed: 8.0,
+
+  /**
+   * Late-arc steering assist.
+   *
+   * Constant air control makes last-moment corrections physically impossible,
+   * not merely hard: with 0.2s left, 30 m/s² moves you 0.6m and a tile is 2m
+   * wide, so the reticle correctly refuses to budge. That reads as the game
+   * ignoring you rather than as commitment.
+   *
+   * Control authority therefore ramps up as impact approaches, so a bad read at
+   * the top of the arc is always recoverable at the bottom. The same curve is
+   * applied inside the landing prediction, so the reticle stays an honest
+   * promise rather than an optimistic one.
+   */
+  lateSteerWindow: 0.5,
+  /** Extra acceleration at the moment of impact, as a multiple of airAccel. */
+  lateSteerBoost: 2.6,
+  /** Extra top speed at the moment of impact, as a fraction of airMaxSpeed. */
+  lateSpeedBoost: 0.55,
   /** Fraction of horizontal speed retained through a landing. */
   landingSpeedRetention: 0.62,
   /** Drag applied to horizontal motion each second while airborne. */
@@ -368,6 +387,14 @@ export const RETICLE = {
   /** Degrees per second the ring rotates, scaled up as impact approaches. */
   ringSpin: 22,
   ringSpinGain: 3.5,
+
+  /**
+   * Snap animation when the reticle acquires a different tile. Without it the
+   * reticle teleports between tiles with no acknowledgement, and the player
+   * cannot tell a deliberate re-aim from a jitter.
+   */
+  lockPulseScale: 0.55,
+  lockPulseDecay: 5.5,
 } as const;
 
 export const FEEL = {

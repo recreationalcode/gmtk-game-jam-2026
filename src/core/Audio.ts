@@ -314,6 +314,17 @@ export class AudioEngine {
     this.noiseHit(t, 0.9, 0.16, 300, 0.5);
   }
 
+  /**
+   * Targeting tick when the reticle acquires a new tile. Deliberately tiny —
+   * it fires several times per bounce while steering, so it has to sit under
+   * the mix as texture rather than register as an event.
+   */
+  lockTick(): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    this.noiseHit(ctx.currentTime, 0.02, 0.035, 5200, 6);
+  }
+
   uiClick(): void {
     const ctx = this.ctx;
     if (!ctx) return;

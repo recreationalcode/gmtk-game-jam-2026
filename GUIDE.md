@@ -36,8 +36,9 @@ hold a thumb down to steer and tap with the other hand to time your bounces.
 
 You bounce automatically, but a *timed* bounce is much better.
 
-A **ring closes in** on the tile you are about to land on. Press as the ring
-meets the square:
+A **ring closes in** on the tile you are about to land on. The square snaps and
+flares whenever you steer onto a different tile, so you can always see what you
+have selected. Press as the ring meets the square:
 
 - **Close enough** → a charged bounce. Higher, longer, more reach.
 - **Dead on** → **PERFECT**. Higher still, a dash in the direction you are
@@ -130,6 +131,9 @@ Descending also pays a flat bonus, scaled by your new multiplier.
   and next.
 - **Plan at the top of the arc, commit at the bottom.** You can see most of the
   floor at your apex and barely one tile at the bottom. Decide early.
+- **A bad read is recoverable.** Steering gets *stronger* the closer you are to
+  landing, so you can still shift a tile or so with a quarter-second left. Only
+  the last fraction of a second is truly locked in.
 - **Check a tile's number before you commit to crossing for it.** A 9 will still
   be worth taking when you arrive; a 2 will not.
 - **Deep floors are bigger and their tiles are smaller.** Precision matters more

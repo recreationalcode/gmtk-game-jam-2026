@@ -83,6 +83,15 @@ tile. In a first-person-down camera this is non-negotiable for readability.
 Air control is deliberately limited (you steer, you don't fly), so charging the
 bounce stays the primary way to cover distance.
 
+**Steering authority ramps up as impact approaches.** With constant air control
+a last-moment correction is not merely hard but physically impossible — 30 m/s²
+over the final 0.2s moves you 0.6m and a tile is 2m wide — so the reticle
+correctly refuses to budge, which reads as the game ignoring you. Boosting
+authority late means a bad read at the top of the arc is always recoverable at
+the bottom: roughly 1.3 tiles of adjustment remain with 0.3s left, falling to
+nothing inside the last 0.12s. The prediction applies the identical curve, so
+the reticle stays an honest promise rather than an optimistic one.
+
 ## 4. Camera
 
 First person, locked looking straight down, mounted at the rider's head.

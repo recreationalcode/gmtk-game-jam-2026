@@ -1,5 +1,5 @@
 import { BOUNCE_TIMING, FLOOR, POGO } from '../core/Config';
-import { clamp } from '../core/MathUtil';
+import { clamp, clamp01 } from '../core/MathUtil';
 
 export type BounceQuality = 'normal' | 'charged' | 'perfect';
 
@@ -118,11 +118,14 @@ export class Player {
     let vz = this.vz;
 
     for (let i = 0; i < steps; i++) {
-      vx += steerX * POGO.airAccel * dt;
-      vz += steerZ * POGO.airAccel * dt;
+      const remaining = t - i * dt;
+      const accel = steerAccelAt(remaining);
+      const maxSpeed = steerMaxSpeedAt(remaining);
+      vx += steerX * accel * dt;
+      vz += steerZ * accel * dt;
       const speed = Math.hypot(vx, vz);
-      if (speed > POGO.airMaxSpeed) {
-        const s = POGO.airMaxSpeed / speed;
+      if (speed > maxSpeed) {
+        const s = maxSpeed / speed;
         vx *= s;
         vz *= s;
       }
@@ -157,11 +160,15 @@ export class Player {
     this.consumedBounceInput = false;
 
     // Horizontal: accelerate toward the steer direction, cap, then drag.
-    this.vx += steerX * POGO.airAccel * dt;
-    this.vz += steerZ * POGO.airAccel * dt;
+    // Authority rises as impact nears so a late correction is always possible.
+    const tti = this.timeToImpact();
+    const accel = steerAccelAt(tti);
+    const maxSpeed = steerMaxSpeedAt(tti);
+    this.vx += steerX * accel * dt;
+    this.vz += steerZ * accel * dt;
     const speed = Math.hypot(this.vx, this.vz);
-    if (speed > POGO.airMaxSpeed) {
-      const s = POGO.airMaxSpeed / speed;
+    if (speed > maxSpeed) {
+      const s = maxSpeed / speed;
       this.vx *= s;
       this.vz *= s;
     }
@@ -175,8 +182,8 @@ export class Player {
     // Soft containment: push back before the rim, hard clamp at it. There is no
     // death in this game, so leaving the grid must be corrected, not punished.
     const soft = halfExtent * 0.86;
-    if (Math.abs(this.x) > soft) this.vx -= Math.sign(this.x) * POGO.airAccel * 1.6 * dt;
-    if (Math.abs(this.z) > soft) this.vz -= Math.sign(this.z) * POGO.airAccel * 1.6 * dt;
+    if (Math.abs(this.x) > soft) this.vx -= Math.sign(this.x) * accel * 1.6 * dt;
+    if (Math.abs(this.z) > soft) this.vz -= Math.sign(this.z) * accel * 1.6 * dt;
     if (this.x > halfExtent) {
       this.x = halfExtent;
       this.vx = Math.min(this.vx, 0);
@@ -296,6 +303,27 @@ export class Player {
       this.compressionVel = Math.max(0, this.compressionVel);
     }
   }
+}
+
+/**
+ * How much steering authority the rider has, given how long is left before
+ * impact. Ramps from normal at the top of the arc to boosted at touchdown.
+ *
+ * Both the simulation and the landing prediction call these, which is the whole
+ * point: if the reticle used a different curve it would promise landings the
+ * physics would not deliver.
+ */
+function lateFactor(timeToImpact: number): number {
+  if (!Number.isFinite(timeToImpact) || timeToImpact <= 0) return 1;
+  return 1 - clamp01(timeToImpact / POGO.lateSteerWindow);
+}
+
+export function steerAccelAt(timeToImpact: number): number {
+  return POGO.airAccel * (1 + POGO.lateSteerBoost * lateFactor(timeToImpact));
+}
+
+export function steerMaxSpeedAt(timeToImpact: number): number {
+  return POGO.airMaxSpeed * (1 + POGO.lateSpeedBoost * lateFactor(timeToImpact));
 }
 
 export function launchSpeed(apex: number): number {
