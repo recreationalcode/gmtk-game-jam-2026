@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Pogo Drop — dev diagnostics</title>
+    <style>
+      body {
+        background: #05060a;
+        color: #eef;
+        font: 13px ui-monospace, monospace;
+        padding: 1rem;
+      }
+      canvas {
+        border: 1px solid #38e8ff55;
+        image-rendering: pixelated;
+        background: #10131c;
+      }
+      pre {
+        white-space: pre-wrap;
+        line-height: 1.5;
+      }
+      h2 {
+        color: #38e8ff;
+        font-size: 12px;
+        letter-spacing: 0.2em;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      Dev-only diagnostics page. Vite's default build input is index.html, so
+      this is never part of a production build or the itch.io zip.
+    -->
+    <h2>GLYPH ATLAS (cell index labelled)</h2>
+    <div id="atlas"></div>
+    <h2>FLOOR GENERATION BY DEPTH</h2>
+    <pre id="floors"></pre>
+    <script type="module" src="/src/debug.ts"></script>
+  </body>
+</html>

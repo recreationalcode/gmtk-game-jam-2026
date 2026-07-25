@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#05060a" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta
+      name="description"
+      content="Pogo Drop — bounce down through collapsing floors before the clock runs out."
+    />
+    <title>Pogo Drop</title>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="gl"></canvas>
+
+      <!-- Everything below is a DOM overlay. Rendering UI text in WebGL costs
+           draw calls and forces a font asset; DOM text is free, crisp at every
+           DPR, and screen-reader legible. -->
+      <div id="ui">
+        <div id="boot" class="screen visible">
+          <div class="boot-mark" aria-hidden="true"></div>
+          <p class="boot-text">LOADING</p>
+        </div>
+      </div>
+    </div>
+
+    <noscript>
+      <p style="color: #fff; font: 16px monospace; padding: 2rem">
+        Pogo Drop needs JavaScript and WebGL to run.
+      </p>
+    </noscript>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

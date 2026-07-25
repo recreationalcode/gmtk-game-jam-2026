@@ -1,0 +1,598 @@
+/*
+ * Pogo Drop UI.
+ *
+ * The type is a system monospace stack on purpose: no font file ships with the
+ * game, so there is no licence to track, nothing to download before first
+ * paint, and the technical/readout look the art direction wants comes free.
+ */
+
+:root {
+  --accent: #38e8ff;
+  --accent-dim: #38e8ff40;
+  --hostile: #ff3b5c;
+  --ink: #eef4ff;
+  --ink-dim: #eef4ff88;
+  --bg: #05060a;
+  --panel: #0a0d16f2;
+
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, "Cascadia Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--mono);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+}
+
+#gl {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+#ui {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------------- */
+/* HUD                                                                     */
+/* --------------------------------------------------------------------- */
+
+.hud {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.hud.visible {
+  opacity: 1;
+}
+
+.hud-corner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.hud-tl {
+  top: calc(var(--safe-top) + 1rem);
+  left: calc(var(--safe-left) + 1rem);
+}
+
+.hud-tr {
+  top: calc(var(--safe-top) + 1rem);
+  right: calc(var(--safe-right) + 1rem);
+  align-items: flex-end;
+}
+
+.hud-bl {
+  bottom: calc(var(--safe-bottom) + 1rem);
+  left: calc(var(--safe-left) + 1rem);
+}
+
+.hud-br {
+  bottom: calc(var(--safe-bottom) + 1rem);
+  right: calc(var(--safe-right) + 1rem);
+  align-items: flex-end;
+}
+
+.hud-label {
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+}
+
+.hud-value {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 18px var(--accent-dim);
+}
+
+.hud-value.small {
+  font-size: 1.35rem;
+}
+
+#hud-time {
+  color: var(--ink);
+  transition: color 0.2s ease;
+}
+
+.hud.endgame #hud-time {
+  color: var(--hostile);
+  text-shadow: 0 0 26px var(--hostile);
+}
+
+/* The clock second-tick pulse. Re-triggered by removing and re-adding. */
+@keyframes tick-pulse {
+  0% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+#hud-time.tick {
+  animation: tick-pulse 0.28s ease-out;
+}
+
+#hud-mult {
+  color: var(--accent);
+}
+
+#hud-depth {
+  color: var(--accent);
+}
+
+/* Combo pip row, centred low so it sits under the action without covering it */
+#hud-combo {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 3.2rem);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+#hud-combo.active {
+  opacity: 1;
+}
+
+#hud-combo .combo-text {
+  font-size: 1rem;
+  letter-spacing: 0.18em;
+  color: var(--accent);
+  text-shadow: 0 0 16px var(--accent);
+}
+
+/* Giant endgame countdown behind the play field */
+#hud-bigcount {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: min(46vw, 46vh);
+  font-weight: 800;
+  color: var(--hostile);
+  opacity: 0;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes bigcount {
+  0% {
+    opacity: 0.34;
+    transform: scale(0.82);
+  }
+  70% {
+    opacity: 0.1;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.12);
+  }
+}
+
+#hud-bigcount.pulse {
+  animation: bigcount 0.85s ease-out;
+}
+
+/* Floating score popups, positioned by projecting the world hit point */
+.popup {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-shadow: 0 0 14px currentColor;
+  pointer-events: none;
+  white-space: nowrap;
+  will-change: transform, opacity;
+}
+
+.popup.hostile {
+  color: var(--hostile);
+}
+
+.popup.big {
+  font-size: 2.1rem;
+}
+
+@keyframes popup-float {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.7);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(-50%, -68%) scale(1.12);
+  }
+  32% {
+    transform: translate(-50%, -76%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -150%) scale(0.95);
+  }
+}
+
+/* Touch steering indicator */
+#touch-stick {
+  position: absolute;
+  border: 1px solid var(--accent-dim);
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  transform: translate(-50%, -50%);
+}
+
+#touch-stick.active {
+  opacity: 0.5;
+}
+
+#touch-nub {
+  position: absolute;
+  width: 26%;
+  height: 26%;
+  left: 50%;
+  top: 50%;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.55;
+  transform: translate(-50%, -50%);
+}
+
+/* --------------------------------------------------------------------- */
+/* Screens                                                                 */
+/* --------------------------------------------------------------------- */
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: none;
+  place-items: center;
+  padding: calc(var(--safe-top) + 1rem) calc(var(--safe-right) + 1rem)
+    calc(var(--safe-bottom) + 1rem) calc(var(--safe-left) + 1rem);
+  background: radial-gradient(ellipse at center, #05060ac2 0%, #05060af5 70%);
+  pointer-events: auto;
+  overflow-y: auto;
+}
+
+.screen.visible {
+  display: grid;
+}
+
+.panel {
+  width: min(34rem, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.6rem;
+  border: 1px solid var(--accent-dim);
+  background: var(--panel);
+  box-shadow: 0 0 60px #000a, inset 0 0 40px #38e8ff0a;
+}
+
+.title {
+  font-size: clamp(2.4rem, 11vw, 4rem);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 0.95;
+  margin: 0;
+  text-align: center;
+  color: var(--ink);
+  text-shadow: 0 0 30px var(--accent-dim);
+}
+
+.title em {
+  font-style: normal;
+  color: var(--accent);
+}
+
+.tagline {
+  margin: 0;
+  text-align: center;
+  color: var(--ink-dim);
+  font-size: 0.8rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+h2 {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  font-weight: 600;
+}
+
+p {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+button {
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--bg);
+  background: var(--accent);
+  border: 0;
+  padding: 0.85rem 1.2rem;
+  cursor: pointer;
+  transition: transform 0.12s ease, filter 0.12s ease;
+  pointer-events: auto;
+  touch-action: manipulation;
+  min-height: 44px;
+}
+
+button:hover {
+  filter: brightness(1.15);
+}
+
+button:active {
+  transform: scale(0.97);
+}
+
+button.ghost {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent-dim);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.button-row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.button-row button {
+  flex: 1 1 8rem;
+}
+
+input[type='text'] {
+  font-family: var(--mono);
+  font-size: 1rem;
+  letter-spacing: 0.1em;
+  padding: 0.75rem 0.9rem;
+  background: #ffffff0a;
+  border: 1px solid var(--accent-dim);
+  color: var(--ink);
+  width: 100%;
+  min-height: 44px;
+}
+
+input[type='text']:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Tile legend used by the guide */
+.legend {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.55rem 0.8rem;
+  align-items: center;
+  font-size: 0.82rem;
+}
+
+.legend canvas {
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--accent-dim);
+  background: #ffffff06;
+}
+
+.legend b {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.keys {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.4rem 0.8rem;
+  font-size: 0.82rem;
+  align-items: baseline;
+}
+
+kbd {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--accent-dim);
+  border-radius: 3px;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+/* Run summary */
+.final-score {
+  font-size: clamp(2.6rem, 14vw, 4.2rem);
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 34px var(--accent-dim);
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+  gap: 0.7rem;
+  text-align: center;
+}
+
+.stat-grid div span {
+  display: block;
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+}
+
+.stat-grid div b {
+  font-size: 1.3rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Leaderboard table */
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  max-height: 15rem;
+  overflow-y: auto;
+  font-size: 0.85rem;
+}
+
+.board-row {
+  display: grid;
+  grid-template-columns: 2.4rem 1fr auto;
+  gap: 0.6rem;
+  padding: 0.35rem 0.5rem;
+  align-items: baseline;
+}
+
+.board-row:nth-child(odd) {
+  background: #ffffff06;
+}
+
+.board-row.self {
+  background: var(--accent-dim);
+  color: var(--ink);
+}
+
+.board-row .rank {
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.board-row .score {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.notice {
+  font-size: 0.72rem;
+  color: var(--ink-dim);
+  line-height: 1.5;
+}
+
+.notice.warn {
+  color: #ffb066;
+}
+
+/* Boot screen */
+#boot {
+  display: grid;
+  place-items: center;
+  gap: 1rem;
+}
+
+.boot-mark {
+  width: 46px;
+  height: 46px;
+  border: 2px solid var(--accent);
+  animation: boot-spin 1.4s cubic-bezier(0.6, 0, 0.4, 1) infinite;
+}
+
+@keyframes boot-spin {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(0.6);
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+.boot-text {
+  letter-spacing: 0.3em;
+  font-size: 0.7rem;
+  color: var(--ink-dim);
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Rotate hint for very short landscape viewports on phones */
+#rotate-hint {
+  position: absolute;
+  inset: 0;
+  display: none;
+  place-items: center;
+  background: var(--bg);
+  text-align: center;
+  padding: 2rem;
+  pointer-events: auto;
+  z-index: 10;
+}
+
+@media (orientation: landscape) and (max-height: 380px) {
+  #rotate-hint.enabled {
+    display: grid;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

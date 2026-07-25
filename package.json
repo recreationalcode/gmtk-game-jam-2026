@@ -1,0 +1,26 @@
+{
+  "name": "pogo-drop",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Pogo Drop \u2014 a first-person pogo-stick score attack for GMTK Game Jam 2026 (theme: Count Down)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "build:fast": "vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit",
+    "package": "npm run build && node scripts/package-itch.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "diag": "node scripts/diag.mjs"
+  },
+  "devDependencies": {
+    "@types/three": "^0.185.1",
+    "playwright": "^1.62.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.1.5"
+  },
+  "dependencies": {
+    "three": "^0.185.1"
+  }
+}
