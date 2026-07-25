@@ -1,10 +1,9 @@
 import * as THREE from 'three';
-import { BOUNCE_TIMING } from '../core/Config';
-import { clamp01 } from '../core/MathUtil';
+import { BOUNCE_TIMING, RETICLE } from '../core/Config';
+import { clamp01, degToRad, lerp } from '../core/MathUtil';
 import type { Floor } from '../game/Floor';
 
-const RING_LEAD = 0.55;
-const RING_SEGMENTS = 40;
+const RING_SEGMENTS = 48;
 
 /**
  * The landing reticle, and the wireframe hint of the floor below.
@@ -97,6 +96,7 @@ export class Guides {
     timeToImpact: number,
     accent: THREE.Color,
     perfectFlash: number,
+    time: number,
   ): void {
     const gx = floor.gridX(landX);
     const gy = floor.gridY(landZ);
@@ -107,25 +107,28 @@ export class Guides {
     this.square.position.set(cx, y, cz);
     this.square.scale.setScalar(floor.tileSize * 1.06);
 
-    // Ring converges on the square exactly at touchdown. The player learns the
-    // timing by watching it close rather than by reading a number.
-    const lead = clamp01(timeToImpact / RING_LEAD);
-    // Modest expansion. With the longer arc a wide lead ring becomes a
-    // screen-filling circle that reads as an effect rather than a cue.
-    const ringScale = floor.tileSize * 1.06 * (1 + lead * 1.7);
+    // Ring converges on the square exactly at touchdown, but stays tile-scoped
+    // the whole way so it always reads as pointing at one specific tile.
+    const lead = clamp01(timeToImpact / RETICLE.ringLead);
+    const ringScale = floor.tileSize * lerp(RETICLE.ringMinScale, RETICLE.ringMaxScale, lead);
     this.ring.position.set(cx, y + 0.01, cz);
     this.ring.scale.setScalar(ringScale);
 
     const closeness = 1 - clamp01(timeToImpact / (BOUNCE_TIMING.chargeWindow * 3));
-    // Kept deliberately dim and off-white: a bright ring is the single
-    // brightest thing on screen once bloom has it, and it drowns the tiles it
-    // is supposed to be pointing at.
-    // Saturated cyan puts two channels near full, so even a thin line sails
-    // over the bloom threshold. Alpha is the lever that actually controls it.
-    this.ringMat.opacity = 0.1 + closeness * 0.24;
-    this.ringMat.color.copy(accent).lerp(WHITE, closeness * 0.4 + perfectFlash * 0.4);
 
-    this.squareMat.opacity = 0.26 + closeness * 0.32 + perfectFlash * 0.2;
+    // Now that the ring barely changes size, rotation and brightness carry the
+    // timing cue its diameter used to. It winds up as impact approaches.
+    this.ring.rotation.y = degToRad(
+      time * RETICLE.ringSpin * (1 + closeness * RETICLE.ringSpinGain),
+    );
+
+    // Opacity is the only real lever on bloom here: a saturated accent puts two
+    // channels near full, so the line clears the bloom threshold at any width.
+    this.ringMat.opacity = RETICLE.ringOpacityBase + closeness * RETICLE.ringOpacityGain;
+    this.ringMat.color.copy(accent).lerp(WHITE, 0.2 + closeness * 0.4 + perfectFlash * 0.4);
+
+    this.squareMat.opacity =
+      RETICLE.squareOpacityBase + closeness * RETICLE.squareOpacityGain + perfectFlash * 0.2;
     this.squareMat.color.copy(accent).lerp(WHITE, perfectFlash * 0.6);
 
     this.dropPoints[0]!.set(playerX, playerY, playerZ);

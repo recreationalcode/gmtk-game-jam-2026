@@ -473,6 +473,7 @@ export class App {
         t,
         this.accent,
         this.perfectFlash,
+        this.clock,
       );
       const preview = game.previewGeometry;
       this.guides.updatePreview(preview.side, preview.extent, preview.y, this.accent);

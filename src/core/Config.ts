@@ -338,6 +338,38 @@ export const CAMERA = {
   fovPunchDecay: 6.0,
 } as const;
 
+/**
+ * The landing reticle.
+ *
+ * It answers two questions at once and the sizes below are the compromise
+ * between them. The square says *which tile*; the ring closing on it says
+ * *when to press*. A wide lead ring makes the timing unmistakable but stops
+ * pointing at any particular tile — at 2.7× tile size it spanned three of them,
+ * so from the top of an arc you could not tell what you had selected. Keeping
+ * the ring tile-scoped makes it read as a lock-on cursor you can steer onto a
+ * target, and the timing cue is carried by brightness and spin instead of by
+ * sheer size.
+ */
+export const RETICLE = {
+  /** Seconds of lead over which the ring converges on the square. */
+  ringLead: 0.55,
+  /** Ring diameter at full lead, as a multiple of tile size. */
+  ringMaxScale: 1.7,
+  /** Ring diameter at touchdown — matches the square, so they meet exactly. */
+  ringMinScale: 1.06,
+
+  /** Opacity floor, in effect at the top of the arc where visibility matters most. */
+  ringOpacityBase: 0.3,
+  /** Extra opacity as impact closes in. */
+  ringOpacityGain: 0.38,
+  squareOpacityBase: 0.36,
+  squareOpacityGain: 0.34,
+
+  /** Degrees per second the ring rotates, scaled up as impact approaches. */
+  ringSpin: 22,
+  ringSpinGain: 3.5,
+} as const;
+
 export const FEEL = {
   /** Seconds of frozen time on a normal landing / a perfect one / a descend. */
   hitstopNormal: 0.0,
