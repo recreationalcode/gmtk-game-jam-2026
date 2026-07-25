@@ -190,14 +190,22 @@ export class Leaderboard {
   }
 
   readLocal(limit: number): LeaderboardEntry[] {
+    // Highlight only rows matching the current name. Marking every local row as
+    // "you" is technically true — they are all from this device — but it makes
+    // the highlight mean nothing, and a shared device really can hold several
+    // people's scores.
+    const self = sanitiseName(this.getStoredName()).toLowerCase();
     return this.rawLocal()
       .slice(0, limit)
-      .map((r, i) => ({
-        rank: i + 1,
-        name: r.name || 'YOU',
-        score: r.score,
-        isSelf: true,
-      }));
+      .map((r, i) => {
+        const name = sanitiseName(r.name || 'YOU');
+        return {
+          rank: i + 1,
+          name,
+          score: r.score,
+          isSelf: self.length > 0 && name.toLowerCase() === self,
+        };
+      });
   }
 
   get personalBest(): number {

@@ -118,7 +118,12 @@ export class App {
     });
 
     this.input.onAnyInput.add(() => void this.audio.unlock());
-    this.input.onPause.add(() => this.togglePause());
+    this.input.onPause.add(() => {
+      // Escape backs out of the guide or the leaderboard first; only then does
+      // it mean "pause".
+      if (this.screens.handleBack()) return;
+      this.togglePause();
+    });
 
     window.addEventListener('resize', () => this.onResize());
     window.addEventListener('orientationchange', () => this.onResize());

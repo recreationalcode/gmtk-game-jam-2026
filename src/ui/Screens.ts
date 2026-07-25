@@ -4,7 +4,7 @@ import type { RunSummary } from '../game/GameState';
 import type { BoardResult } from '../net/Leaderboard';
 import { GLYPH, renderGlyphToCanvas } from '../render/GlyphAtlas';
 
-export type ScreenName = 'title' | 'guide' | 'pause' | 'over' | null;
+export type ScreenName = 'title' | 'guide' | 'pause' | 'over' | 'board' | null;
 
 export interface ScreenCallbacks {
   onPlay(): void;
@@ -31,11 +31,19 @@ export class Screens {
 
   private current: ScreenName = null;
   private nameInput!: HTMLInputElement;
-  private boardEl!: HTMLElement;
-  private boardNotice!: HTMLElement;
   private submitButton!: HTMLButtonElement;
   private soundButton!: HTMLButtonElement;
   private bestEl!: HTMLElement;
+
+  /**
+   * The board is rendered in two places — inline under the run summary, where
+   * you want to see where your score landed the moment you submit it, and on a
+   * standalone screen reachable from the title before you have played at all.
+   * One render path feeds both so they can never disagree.
+   */
+  private readonly boardViews: Array<{ rows: HTMLElement; notice: HTMLElement }> = [];
+  /** Where the standalone board's Back button should return to. */
+  private boardReturnTo: Exclude<ScreenName, null> = 'title';
 
   private soundOn = true;
   private lastSummary: RunSummary | null = null;
@@ -48,6 +56,7 @@ export class Screens {
     this.buildGuide();
     this.buildPause();
     this.buildOver();
+    this.buildBoard();
     this.buildRotateHint();
   }
 
@@ -85,6 +94,7 @@ export class Screens {
         </div>
         <div class="button-row">
           <button class="ghost" data-act="guide">How to play</button>
+          <button class="ghost" data-act="board">Leaderboard</button>
           <button class="ghost" data-act="sound">Sound: on</button>
         </div>
         <p class="notice" data-role="best"></p>
@@ -99,7 +109,78 @@ export class Screens {
 
     el.querySelector('[data-act="play"]')!.addEventListener('click', () => this.cb.onPlay());
     el.querySelector('[data-act="guide"]')!.addEventListener('click', () => this.show('guide'));
+    el.querySelector('[data-act="board"]')!.addEventListener('click', () => this.openBoard('title'));
     this.soundButton.addEventListener('click', () => this.toggleSound());
+  }
+
+  // -- standalone leaderboard ---------------------------------------------
+
+  private buildBoard(): void {
+    const el = this.makeScreen('board');
+    el.innerHTML = `
+      <div class="panel">
+        <h1 class="title" style="font-size:clamp(1.6rem,7vw,2.2rem)">LEADERBOARD</h1>
+        <div class="board" data-role="board"></div>
+        <p class="notice" data-role="board-notice"></p>
+        <div class="button-row">
+          <button data-act="back">Back</button>
+          <button class="ghost" data-act="refresh">Refresh</button>
+        </div>
+      </div>
+    `;
+
+    this.boardViews.push({
+      rows: el.querySelector<HTMLElement>('[data-role="board"]')!,
+      notice: el.querySelector<HTMLElement>('[data-role="board-notice"]')!,
+    });
+
+    el.querySelector('[data-act="back"]')!.addEventListener('click', () => {
+      this.show(this.boardReturnTo);
+    });
+    el.querySelector('[data-act="refresh"]')!.addEventListener('click', () => {
+      this.setBoardLoading();
+      this.cb.onRefreshBoard();
+    });
+  }
+
+  /**
+   * Open the standalone board, remembering where to go back to. Fetching is
+   * kicked off on open rather than cached, so a board opened from the title is
+   * current rather than whatever was loaded at boot.
+   */
+  openBoard(from: Exclude<ScreenName, null>): void {
+    this.boardReturnTo = from;
+    this.setBoardLoading();
+    this.show('board');
+    this.cb.onRefreshBoard();
+  }
+
+  /**
+   * Escape backs out of a sub-screen before it reaches the pause toggle.
+   * Returns true if it consumed the key.
+   */
+  handleBack(): boolean {
+    if (this.current === 'board') {
+      this.show(this.boardReturnTo);
+      return true;
+    }
+    if (this.current === 'guide') {
+      this.show(this.lastSummary ? 'over' : 'title');
+      return true;
+    }
+    return false;
+  }
+
+  private setBoardLoading(): void {
+    for (const view of this.boardViews) {
+      view.rows.replaceChildren();
+      const p = document.createElement('p');
+      p.className = 'notice';
+      p.textContent = 'Loading scores…';
+      view.rows.appendChild(p);
+      view.notice.textContent = '';
+      view.notice.classList.remove('warn');
+    }
   }
 
   private toggleSound(): void {
@@ -184,11 +265,13 @@ export class Screens {
         <h1 class="title" style="font-size:clamp(1.8rem,8vw,2.6rem)">PAUSED</h1>
         <div class="button-row"><button data-act="resume">Resume</button></div>
         <div class="button-row">
+          <button class="ghost" data-act="board">Leaderboard</button>
           <button class="ghost" data-act="restart">Restart</button>
           <button class="ghost" data-act="quit">Quit</button>
         </div>
       </div>
     `;
+    el.querySelector('[data-act="board"]')!.addEventListener('click', () => this.openBoard('pause'));
     el.querySelector('[data-act="resume"]')!.addEventListener('click', () => this.cb.onResume());
     el.querySelector('[data-act="restart"]')!.addEventListener('click', () => this.cb.onRestart());
     el.querySelector('[data-act="quit"]')!.addEventListener('click', () => this.cb.onQuit());
@@ -221,9 +304,11 @@ export class Screens {
     `;
 
     this.nameInput = el.querySelector<HTMLInputElement>('[data-role="name"]')!;
-    this.boardEl = el.querySelector<HTMLElement>('[data-role="board"]')!;
-    this.boardNotice = el.querySelector<HTMLElement>('[data-role="board-notice"]')!;
     this.submitButton = el.querySelector<HTMLButtonElement>('[data-act="submit"]')!;
+    this.boardViews.push({
+      rows: el.querySelector<HTMLElement>('[data-role="board"]')!,
+      notice: el.querySelector<HTMLElement>('[data-role="board-notice"]')!,
+    });
 
     this.submitButton.addEventListener('click', () => this.submit());
     this.nameInput.addEventListener('keydown', (e) => {
@@ -271,7 +356,7 @@ export class Screens {
     if (storedName && !this.nameInput.value) this.nameInput.value = storedName;
     this.submitButton.disabled = false;
     this.submitButton.textContent = 'Submit score';
-    this.boardNotice.textContent = '';
+    this.setBoardLoading();
     this.cb.onRefreshBoard();
   }
 
@@ -298,20 +383,29 @@ export class Screens {
         this.submitButton.textContent = 'Submit score';
     }
     if (message) {
-      this.boardNotice.textContent = message;
-      this.boardNotice.classList.toggle('warn', state === 'failed');
+      for (const view of this.boardViews) {
+        view.notice.textContent = message;
+        view.notice.classList.toggle('warn', state === 'failed');
+      }
     }
   }
 
-  /** Render the board. Rows use textContent — never innerHTML — by design. */
+  /** Render the board into every view. Rows use textContent, never innerHTML. */
   showBoard(result: BoardResult): void {
-    this.boardEl.replaceChildren();
+    for (const view of this.boardViews) this.renderBoardInto(view, result);
+  }
+
+  private renderBoardInto(
+    view: { rows: HTMLElement; notice: HTMLElement },
+    result: BoardResult,
+  ): void {
+    view.rows.replaceChildren();
 
     if (result.entries.length === 0) {
       const empty = document.createElement('p');
       empty.className = 'notice';
       empty.textContent = 'No scores yet. Be the first.';
-      this.boardEl.appendChild(empty);
+      view.rows.appendChild(empty);
     }
 
     for (const entry of result.entries) {
@@ -330,17 +424,17 @@ export class Screens {
       score.textContent = formatScore(entry.score);
 
       row.append(rank, name, score);
-      this.boardEl.appendChild(row);
+      view.rows.appendChild(row);
     }
 
     if (result.source === 'local') {
-      this.boardNotice.textContent = result.error
+      view.notice.textContent = result.error
         ? `Showing local scores — online board unreachable (${result.error}).`
         : 'Showing scores saved on this device. Online board is not configured.';
-      this.boardNotice.classList.add('warn');
+      view.notice.classList.add('warn');
     } else {
-      this.boardNotice.textContent = '';
-      this.boardNotice.classList.remove('warn');
+      view.notice.textContent = '';
+      view.notice.classList.remove('warn');
     }
   }
 
