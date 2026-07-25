@@ -2,7 +2,7 @@ import { CLOCK, FREEZE, TIME_TILE_BONUS } from '../core/Config';
 import { formatScore } from '../core/MathUtil';
 import type { RunSummary } from '../game/GameState';
 import type { BoardResult } from '../net/Leaderboard';
-import { GLYPH, renderGlyphToCanvas } from '../render/GlyphAtlas';
+import { GLYPH, renderGlyphToCanvas, renderMultiplierToCanvas } from '../render/GlyphAtlas';
 
 export type ScreenName = 'title' | 'guide' | 'pause' | 'over' | 'board' | null;
 
@@ -245,7 +245,11 @@ export class Screens {
       const canvas = document.createElement('canvas');
       canvas.width = 76;
       canvas.height = 76;
-      renderGlyphToCanvas(canvas, row.glyph, row.color);
+      if (row.multiplier !== undefined) {
+        renderMultiplierToCanvas(canvas, row.multiplier, row.color);
+      } else {
+        renderGlyphToCanvas(canvas, row.glyph, row.color);
+      }
       const text = document.createElement('div');
       text.innerHTML = `<b>${row.title}</b> &mdash; ${row.body}`;
       legend.append(canvas, text);
@@ -470,6 +474,8 @@ const CONTROL_ROWS: ReadonlyArray<readonly [string, string]> = [
 
 const LEGEND_ROWS: ReadonlyArray<{
   glyph: number;
+  /** When set, the legend draws a composed multiplier instead of a glyph. */
+  multiplier?: number;
   color: string;
   title: string;
   body: string;
@@ -482,15 +488,16 @@ const LEGEND_ROWS: ReadonlyArray<{
   },
   {
     glyph: GLYPH.DOWN,
+    multiplier: 3,
     color: '#3dffa0',
     title: 'DOWN',
-    body: 'Bounce off it and the whole floor falls away. Multiplier +1. This is how you win.',
+    body: 'Shows the multiplier you get for taking it — <b>&times;2</b>, <b>&times;3</b> and so on. Bounce off it and the whole floor falls away. This is how you win.',
   },
   {
     glyph: GLYPH.UP,
     color: '#ff3b5c',
     title: 'UP',
-    body: 'Throws you back to the floor above. Multiplier −1, and that floor has been rotting while you were away.',
+    body: 'Throws you back to the floor above. Multiplier &minus;1 and lost time &mdash; but anything that burned out up there comes back as numbers.',
   },
   {
     glyph: GLYPH.SPENT,

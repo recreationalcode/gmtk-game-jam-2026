@@ -19,15 +19,17 @@ export const GLYPH = {
   TIME: 13,
   BOOST: 14,
   FREEZE: 15,
-  NONE: 16,
+  /** The multiplication sign, composed beside digits to spell "x3" in-world. */
+  TIMES: 16,
+  NONE: 17,
 } as const;
 
 /** Glyphs are layers of a texture array; index 16 (NONE) draws nothing. */
-export const ATLAS_LAYERS = 16;
+export const ATLAS_LAYERS = 17;
 
 /** Layout used only by the diagnostics page, which previews them as a grid. */
 export const ATLAS_COLS = 4;
-export const ATLAS_ROWS = 4;
+export const ATLAS_ROWS = 5;
 
 /** Segment bitmask per digit. Bit order a,b,c,d,e,f,g → 1,2,4,8,16,32,64. */
 const SEVEN_SEGMENT: readonly number[] = [
@@ -128,6 +130,49 @@ export function renderGlyphToCanvas(
   drawCell(ctx, index, canvas.width);
 }
 
+/**
+ * Draw a composed multiplier ("x3") into a canvas, matching how the shader lays
+ * it out on a DOWN tile. The guide's legend uses this so it shows the same
+ * artwork the board does and cannot drift out of sync with it.
+ */
+export function renderMultiplierToCanvas(
+  canvas: HTMLCanvasElement,
+  value: number,
+  color: string,
+): void {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const s = canvas.width;
+  ctx.clearRect(0, 0, s, s);
+  applyStrokeStyle(ctx);
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+
+  const digits = String(Math.max(0, Math.round(value))).split('');
+  const cells = ['x', ...digits];
+  const slot = 1 / cells.length;
+
+  // Mirrors the crop the shader applies per fragment: each glyph's ink region
+  // is stretched to fill its slot, rather than the whole padded cell being
+  // squeezed. Without this the legend renders visibly narrower than the board.
+  const scaleX = slot / (INK_X1 - INK_X0);
+  const scaleY = 1 / (INK_Y1 - INK_Y0);
+
+  cells.forEach((cell, i) => {
+    ctx.save();
+    ctx.translate(i * slot * s - INK_X0 * s * scaleX, -INK_Y0 * s * scaleY);
+    ctx.scale(scaleX, scaleY);
+    drawCell(ctx, cell === 'x' ? GLYPH.TIMES : Number(cell), s);
+    ctx.restore();
+  });
+}
+
+/** Ink region of a glyph cell. Must match `glyphIn` in the tile shader. */
+const INK_X0 = 0.24;
+const INK_X1 = 0.76;
+const INK_Y0 = 0.1;
+const INK_Y1 = 0.9;
+
 function drawCell(ctx: CanvasRenderingContext2D, index: number, s: number): void {
   if (index <= 9) {
     drawSevenSegment(ctx, SEVEN_SEGMENT[index]!, s);
@@ -151,6 +196,9 @@ function drawCell(ctx: CanvasRenderingContext2D, index: number, s: number): void
       break;
     case GLYPH.FREEZE:
       drawFreeze(ctx, s);
+      break;
+    case GLYPH.TIMES:
+      drawTimes(ctx, s);
       break;
     default:
       break;
@@ -247,6 +295,15 @@ function drawBoost(ctx: CanvasRenderingContext2D, s: number): void {
   const r = 0.06 * s;
   line(ctx, cx - r, cy, cx + r, cy);
   line(ctx, cx, cy - r, cx, cy + r);
+}
+
+/** A bold multiplication sign, drawn to the same optical weight as the digits. */
+function drawTimes(ctx: CanvasRenderingContext2D, s: number): void {
+  ctx.lineWidth = 0.085 * s;
+  const c = 0.5 * s;
+  const r = 0.17 * s;
+  line(ctx, c - r, c - r, c + r, c + r);
+  line(ctx, c + r, c - r, c - r, c + r);
 }
 
 function drawFreeze(ctx: CanvasRenderingContext2D, s: number): void {

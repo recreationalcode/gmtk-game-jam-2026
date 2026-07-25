@@ -6,6 +6,8 @@ import { GLYPH } from './GlyphAtlas';
 import { tileColor } from './Palette';
 
 const MAX_TILES = FLOOR.maxSide * FLOOR.maxSide;
+/** Sentinel glyph id meaning "compose the multiplier text for this tile". */
+const DOWN_COMPOUND = -1;
 const TILE_THICKNESS = 0.16;
 
 /**
@@ -50,6 +52,7 @@ export class TileField {
         uFogDensity: { value: fogDensity },
         uGlobalTint: { value: new THREE.Color(1, 1, 1) },
         uBrightness: { value: 1 },
+        uDownGlyph: { value: GLYPH.TIMES },
       },
       vertexShader: VERT,
       fragmentShader: FRAG,
@@ -64,7 +67,7 @@ export class TileField {
 
     this.aColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_TILES * 3), 3);
     this.aState = new THREE.InstancedBufferAttribute(new Float32Array(MAX_TILES * 4), 4);
-    this.aGlyph = new THREE.InstancedBufferAttribute(new Float32Array(MAX_TILES), 1);
+    this.aGlyph = new THREE.InstancedBufferAttribute(new Float32Array(MAX_TILES * 2), 2);
     this.aColor.setUsage(THREE.DynamicDrawUsage);
     this.aState.setUsage(THREE.DynamicDrawUsage);
     this.aGlyph.setUsage(THREE.DynamicDrawUsage);
@@ -92,11 +95,15 @@ export class TileField {
   }
 
   /**
-   * Push the floor's current state into the instance buffers.
-   * Called once per rendered frame; ~100 instances makes a full rewrite cheaper
-   * than tracking dirty ranges.
+   * Push the floor's current state into the instance buffers. Called once per
+   * rendered frame; ~100 instances makes a full rewrite cheaper than tracking
+   * dirty ranges.
+   *
+   * @param nextMultiplier what the multiplier becomes if the player takes a
+   * DOWN tile from here — rendered on the tile itself, because "this is the one
+   * you want" is the single most important thing on the board.
    */
-  sync(floor: Floor, time: number): void {
+  sync(floor: Floor, time: number, nextMultiplier: number): void {
     const n = floor.tiles.length;
     this.mesh.count = n;
     this.material.uniforms.uTime!.value = time;
@@ -131,7 +138,8 @@ export class TileField {
       states[i * 4 + 2] = urgency;
       states[i * 4 + 3] = this.delays[i]!;
 
-      glyphs[i] = glyphFor(tile.kind, tile.value);
+      glyphs[i * 2] = glyphFor(tile.kind, tile.value);
+      glyphs[i * 2 + 1] = nextMultiplier;
     }
 
     this.mesh.instanceMatrix.needsUpdate = true;
@@ -183,7 +191,9 @@ function glyphFor(kind: TileKind, value: number): number {
     case TileKind.Number:
       return Math.max(0, Math.min(9, value));
     case TileKind.Down:
-      return GLYPH.DOWN;
+      // Sentinel: the shader spells out the multiplier instead of sampling a
+      // single layer. GLYPH.DOWN is still drawn in the guide's legend.
+      return DOWN_COMPOUND;
     case TileKind.Up:
       return GLYPH.UP;
     case TileKind.Spent:
@@ -202,14 +212,14 @@ function glyphFor(kind: TileKind, value: number): number {
 const VERT = /* glsl */ `
 attribute vec3 aColor;
 attribute vec4 aState;   // x spawn, y flash, z urgency, w dissolveDelay
-attribute float aGlyph;
+attribute vec2 aGlyph;
 
 uniform float uDissolve;
 
 varying vec2 vUv;
 varying vec3 vColor;
 varying vec4 vState;
-varying float vGlyph;
+varying vec2 vGlyph;
 varying float vTop;
 varying float vFogDepth;
 
@@ -238,6 +248,7 @@ precision highp float;
 
 uniform sampler2DArray uAtlas;
 uniform float uTime;
+uniform float uDownGlyph;
 uniform float uBorder;
 uniform float uBrightness;
 uniform vec3 uFogColor;
@@ -247,9 +258,39 @@ uniform vec3 uGlobalTint;
 varying vec2 vUv;
 varying vec3 vColor;
 varying vec4 vState;
-varying float vGlyph;
+varying vec2 vGlyph;
 varying float vTop;
 varying float vFogDepth;
+
+// Data textures are not flipped on upload the way canvas textures are, so v is
+// inverted here to keep glyphs the right way up.
+float sampleGlyph(float layer, vec2 uv) {
+  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 0.0;
+  return texture(uAtlas, vec3(uv.x, 1.0 - uv.y, layer)).a;
+}
+
+// Map a sub-rectangle of the tile face onto a glyph cell, cropping to the
+// cell's ink area so the glyph fills its slot instead of floating in padding.
+float glyphIn(float layer, vec2 uv, float x0, float x1) {
+  float lx = (uv.x - x0) / (x1 - x0);
+  if (lx < 0.0 || lx > 1.0) return 0.0;
+  vec2 cropped = vec2(mix(0.24, 0.76, lx), mix(0.10, 0.90, uv.y));
+  return sampleGlyph(layer, cropped);
+}
+
+// Spell "x2", "x12" and so on across the tile face.
+float multiplierGlyph(vec2 uv, float value) {
+  float n = clamp(floor(value + 0.5), 0.0, 99.0);
+  if (n < 10.0) {
+    return max(glyphIn(uDownGlyph, uv, 0.10, 0.48), glyphIn(n, uv, 0.50, 0.90));
+  }
+  float tens = floor(n / 10.0);
+  float ones = n - tens * 10.0;
+  return max(
+    glyphIn(uDownGlyph, uv, 0.02, 0.34),
+    max(glyphIn(tens, uv, 0.34, 0.66), glyphIn(ones, uv, 0.66, 0.98))
+  );
+}
 
 void main() {
   vec3 col;
@@ -263,10 +304,11 @@ void main() {
     float aa = max(fwidth(e), 0.0008) * 1.2;
     float border = 1.0 - smoothstep(uBorder - aa, uBorder + aa, e);
 
-    // Data textures are not flipped on upload the way canvas textures are, so
-    // v has to be inverted here to keep glyphs the right way up.
-    vec2 guv = vec2(vUv.x, 1.0 - vUv.y);
-    float glyph = vGlyph > 15.5 ? 0.0 : texture(uAtlas, vec3(guv, vGlyph)).a;
+    // A DOWN tile spells out the multiplier it grants rather than showing an
+    // arrow. The arrow only said "down"; the number says "this is worth it".
+    float glyph = vGlyph.x > 16.5
+      ? 0.0
+      : (vGlyph.x < -0.5 ? multiplierGlyph(vUv, vGlyph.y) : sampleGlyph(vGlyph.x, vUv));
 
     float ink = max(border, glyph);
 

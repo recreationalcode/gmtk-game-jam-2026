@@ -23,6 +23,7 @@ export class HUD {
     combo: HTMLElement;
     comboText: HTMLElement;
     bigCount: HTMLElement;
+    multBurst: HTMLElement;
     stick: HTMLElement;
     nub: HTMLElement;
   };
@@ -32,6 +33,7 @@ export class HUD {
 
   private shownScore = 0;
   private lastTimeText = '';
+  private lastMultiplier = -1;
   private endgame = false;
 
   constructor(root: HTMLElement) {
@@ -47,14 +49,18 @@ export class HUD {
       <div class="hud-corner hud-tr">
         <div class="hud-label">Score</div>
         <div class="hud-value" id="hud-score">0</div>
-        <div class="hud-value small" id="hud-mult">&times;1</div>
       </div>
       <div class="hud-corner hud-bl">
         <div class="hud-label">Depth</div>
         <div class="hud-value small" id="hud-depth">0</div>
       </div>
+      <div class="hud-corner hud-br">
+        <div class="hud-label">Multiplier</div>
+        <div class="hud-value mult" id="hud-mult">&times;1</div>
+      </div>
       <div id="hud-combo"><span class="combo-text">PERFECT &times;1</span></div>
       <div id="hud-bigcount"></div>
+      <div id="hud-multburst"></div>
       <div id="touch-stick"><div id="touch-nub"></div></div>
     `;
     root.appendChild(hud);
@@ -69,6 +75,7 @@ export class HUD {
       combo: q('hud-combo'),
       comboText: hud.querySelector<HTMLElement>('.combo-text')!,
       bigCount: q('hud-bigcount'),
+      multBurst: q('hud-multburst'),
       stick: q('touch-stick'),
       nub: q('touch-nub'),
     };
@@ -120,7 +127,17 @@ export class HUD {
       this.el.score.textContent = formatScore(score);
     }
 
-    this.el.mult.textContent = `×${multiplier}`;
+    // The multiplier is the single most important number in the game — depth is
+    // worth more than any tile — so a change gets its own animation rather than
+    // silently swapping a digit.
+    if (multiplier !== this.lastMultiplier) {
+      const grew = multiplier > this.lastMultiplier && this.lastMultiplier >= 0;
+      this.lastMultiplier = multiplier;
+      this.el.mult.textContent = `×${multiplier}`;
+      this.el.mult.classList.remove('pop', 'drop');
+      void this.el.mult.offsetWidth;
+      this.el.mult.classList.add(grew ? 'pop' : 'drop');
+    }
     this.el.depth.textContent = depth === 0 ? 'SURFACE' : `−${depth}`;
 
     const comboActive = perfectStreak >= 2;
@@ -133,6 +150,14 @@ export class HUD {
     this.el.time.classList.remove('tick');
     void this.el.time.offsetWidth;
     this.el.time.classList.add('tick');
+  }
+
+  /** Slam the new multiplier across the middle of the screen. */
+  celebrateMultiplier(multiplier: number): void {
+    this.el.multBurst.textContent = `×${multiplier}`;
+    this.el.multBurst.classList.remove('fire');
+    void this.el.multBurst.offsetWidth;
+    this.el.multBurst.classList.add('fire');
   }
 
   /** Giant numeral behind the play field during the final seconds. */
@@ -148,7 +173,7 @@ export class HUD {
     text: string,
     world: THREE.Vector3,
     camera: THREE.Camera,
-    variant: 'normal' | 'hostile' | 'big' = 'normal',
+    variant: 'normal' | 'hostile' | 'big' | 'mult' = 'normal',
   ): void {
     this.projected.copy(world).project(camera);
     // Behind the camera, or well outside the frame: not worth a DOM node.
@@ -190,6 +215,7 @@ export class HUD {
 
   resetScore(): void {
     this.shownScore = 0;
+    this.lastMultiplier = -1;
     this.el.score.textContent = '0';
   }
 }

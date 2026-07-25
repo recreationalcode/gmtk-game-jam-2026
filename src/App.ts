@@ -379,15 +379,22 @@ export class App {
 
   private onDescend(e: Extract<GameEvent, { type: 'descend' }>): void {
     this.audio.descend(e.depth);
+    this.audio.multiplierUp(this.game.multiplier);
     this.setAccent(e.depth);
-    this.flash = Math.max(this.flash, 0.22);
-    this.popupAt(`DEPTH −${e.depth}   ×${this.game.multiplier}`, e.x, e.z, 'big');
+    this.flash = Math.max(this.flash, 0.1);
+
+    // Gaining a multiplier is the biggest thing that happens in a run — it is
+    // worth more than any single tile — so it gets the loudest moment: a huge
+    // centred numeral, a triple shockwave, and the deepest hitstop in the game.
+    this.hud.celebrateMultiplier(this.game.multiplier);
+    this.popupAt(`×${this.game.multiplier}`, e.x, e.z, 'mult');
 
     const y = this.game.dissolving?.y ?? this.game.floor.y;
     const downColor = hsl(PALETTE.downHue, 0.9, 0.6).clone();
-    this.ring(e.x, e.z, 26, 0.9, downColor, 0.03);
-    this.ring(e.x, e.z, 14, 0.6, WHITE, 0.06);
-    this.particles.burst(e.x, y, e.z, 70, 9, downColor, 1.3, 3.0, 0.8);
+    this.ring(e.x, e.z, 30, 1.0, downColor, 0.025);
+    this.ring(e.x, e.z, 18, 0.7, downColor, 0.045);
+    this.ring(e.x, e.z, 9, 0.45, WHITE, 0.07);
+    this.particles.burst(e.x, y, e.z, 90, 10, downColor, 1.4, 3.2, 0.85);
   }
 
   private onAscend(e: Extract<GameEvent, { type: 'ascend' }>): void {
@@ -444,10 +451,10 @@ export class App {
     );
     this.rig.setAccent(this.accent);
 
-    this.fieldMain.sync(floor, this.clock);
+    this.fieldMain.sync(floor, this.clock, game.multiplier + 1);
     if (game.dissolving) {
       this.fieldDissolving.setVisible(true);
-      this.fieldDissolving.sync(game.dissolving, this.clock);
+      this.fieldDissolving.sync(game.dissolving, this.clock, game.multiplier);
     } else {
       this.fieldDissolving.setVisible(false);
     }
@@ -555,7 +562,7 @@ export class App {
     text: string,
     x: number,
     z: number,
-    variant: 'normal' | 'hostile' | 'big' = 'normal',
+    variant: 'normal' | 'hostile' | 'big' | 'mult' = 'normal',
   ): void {
     this.scratchVec.set(x, this.game.floor.y + FLOOR.floorDrop * 0.06, z);
     this.hud.popup(text, this.scratchVec, this.rig.camera, variant);

@@ -205,6 +205,21 @@ export class AudioEngine {
     }
   }
 
+  /**
+   * Multiplier fanfare. The number of notes tracks the multiplier itself, so a
+   * x5 is audibly a bigger event than a x2 without any extra samples.
+   */
+  multiplierUp(multiplier: number): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const notes = Math.min(8, Math.max(2, multiplier));
+    for (let i = 0; i < notes; i++) {
+      this.blip(AUDIO.rootMidi + 12 + scaleStep(i), t + 0.24 + i * 0.05, 0.34, 0.16, 'triangle', 0.3);
+    }
+    this.blip(AUDIO.rootMidi + 24 + scaleStep(notes), t + 0.24 + notes * 0.05, 0.7, 0.2, 'sine', 0.4);
+  }
+
   ascend(): void {
     const ctx = this.ctx;
     const bus = this.sfxBus;

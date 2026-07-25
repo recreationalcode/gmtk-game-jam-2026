@@ -149,8 +149,45 @@ body {
   animation: tick-pulse 0.28s ease-out;
 }
 
-#hud-mult {
+/* The multiplier earns the largest type on screen after the clock: depth is
+   worth more than any individual tile, so it is what the player should be
+   reading. */
+.hud-value.mult {
+  font-size: 2.6rem;
   color: var(--accent);
+  text-shadow: 0 0 24px var(--accent);
+  transform-origin: 100% 100%;
+}
+
+@keyframes mult-pop {
+  0% {
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(1.75);
+    filter: brightness(1.8);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes mult-drop {
+  0% {
+    transform: scale(1.25);
+    color: var(--hostile);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.hud-value.mult.pop {
+  animation: mult-pop 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hud-value.mult.drop {
+  animation: mult-drop 0.4s ease-out;
 }
 
 #hud-depth {
@@ -214,6 +251,53 @@ body {
   animation: bigcount 0.85s ease-out;
 }
 
+/* Multiplier fanfare: the biggest thing that happens in a run gets the biggest
+   thing on the screen. Deliberately green rather than the depth accent, so it
+   reads as "the DOWN tile paid off" wherever you are. */
+#hud-multburst {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: min(34vw, 34vh);
+  font-weight: 800;
+  /* White core, coloured glow, dark inner shadow. The accent hue shifts with
+     depth, so a green numeral on the green floor you just landed on is
+     invisible — the fanfare has to read against every palette. */
+  color: #ffffff;
+  opacity: 0;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+  text-shadow:
+    0 0 12px #05060a,
+    0 0 28px #05060aaa,
+    0 0 46px #6dffb0,
+    0 0 90px #6dffb0aa;
+}
+
+@keyframes mult-burst {
+  0% {
+    opacity: 0;
+    transform: scale(0.45);
+  }
+  22% {
+    opacity: 0.95;
+    transform: scale(1.1);
+  }
+  40% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+#hud-multburst.fire {
+  animation: mult-burst 1s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /* Floating score popups, positioned by projecting the world hit point */
 .popup {
   position: absolute;
@@ -233,6 +317,12 @@ body {
 
 .popup.big {
   font-size: 2.1rem;
+}
+
+.popup.mult {
+  font-size: 3rem;
+  color: #6dffb0;
+  font-weight: 800;
 }
 
 @keyframes popup-float {
