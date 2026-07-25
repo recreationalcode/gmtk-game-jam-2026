@@ -71,20 +71,30 @@ your view of the floor, and a wider view is how you find the way down.
 
 This is the part that catches people out.
 
-**Every number on the board is ticking down**, about once per second, whether
-you are looking at it or not. And a number that reaches zero does not just
-vanish — **it burns out into an UP tile**.
+**Every number on the board is ticking down**, roughly once every two and a half
+seconds — about one tick per two bounces — whether you are looking at it or not.
+A number that reaches zero does not just vanish: **it burns out into an UP
+tile**.
 
-So a floor starts generous and *rots into hostile*. Tiles shift colour as they
-decay, from cool to hot, and pulse when they are nearly gone. Every UP tile you
-land on is a tile you were too slow to cash.
+So a floor starts generous and *rots*. Tiles shift colour as they decay, from
+cool to hot, and pulse when they are nearly gone. Every UP tile you land on is
+one you were too slow to cash.
 
-Two consequences worth internalising:
+Three things stop that from spiralling:
 
-1. **Points go stale.** Take the nine now, not the three later.
-2. **The floor above has been rotting too.** When an UP tile sends you back up,
-   you do not get a fresh board — you get the board you left, aged by exactly
-   how long you were away. Going up is never good.
+1. **A floor can only get so hostile.** Once about 45% of it is UP tiles,
+   further burnouts go *dead* instead — worth nothing, but harmless. The board
+   runs out of opportunities before it becomes a minefield.
+2. **Burned tiles come back.** Every time you change level, the tiles that
+   burned out on a floor return as fresh numbers. Decay is recurring pressure,
+   not permanent damage.
+3. **The clock is the only thing you can actually lose.**
+
+What *doesn't* reset: tiles you already cashed stay spent, and surviving numbers
+keep the value they decayed to. A floor you return to is a real place you left,
+just not a graveyard.
+
+**Points go stale — take the nine now, not the three later.**
 
 ---
 
@@ -114,12 +124,14 @@ Descending also pays a flat bonus, scaled by your new multiplier.
 ## Tips
 
 - **The first ten seconds decide the run.** Find the down tile and commit.
-- **Charge your bounce before a long crossing.** Ordinary bounces do not have
-  the airtime to cross a deep, wide floor.
+- **Charge your bounce before a long crossing.** An ordinary bounce covers about
+  four tiles; a charged one closer to five and a half. On a deep, wide floor
+  that difference is the difference between reaching the down tile this bounce
+  and next.
 - **Plan at the top of the arc, commit at the bottom.** You can see most of the
   floor at your apex and barely one tile at the bottom. Decide early.
-- **Do not chase a dying tile across the board.** It will be an UP tile by the
-  time you arrive.
+- **Check a tile's number before you commit to crossing for it.** A 9 will still
+  be worth taking when you arrive; a 2 will not.
 - **Deep floors are bigger and their tiles are smaller.** Precision matters more
   the further you go.
 - There is **no way to die**. Only the clock can stop you — so take risks.

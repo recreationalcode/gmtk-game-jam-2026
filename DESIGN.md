@@ -18,10 +18,10 @@ timer bolted to a generic game:
 2. **The floors count down.** Depth is displayed as `-1`, `-2`, `-3`… You are
    descending. Progress is literally counting down.
 3. **The tiles count down.** This is the important one. Every scoring tile
-   displays a number that ticks down roughly once per second. Land on a `9` and
-   you bank 9 × your multiplier. Dither, and that 9 becomes an 8, a 7, a 3 —
-   and when it hits zero the tile *burns out* and flips into an UP tile that
-   costs you a floor.
+   displays a number that ticks down about once every two and a half seconds —
+   roughly one tick per two bounces. Land on a `9` and you bank 9 × your
+   multiplier. Dither, and that 9 becomes an 8, a 7, a 3 — and when it hits zero
+   the tile *burns out* and flips into an UP tile that costs you a floor.
 
 That third reading is what makes the game rather than decorates it. It means:
 
@@ -34,8 +34,10 @@ That third reading is what makes the game rather than decorates it. It means:
 
 > **Open question for Neel #1** — this is the one real departure from your spec.
 > If you'd rather have static tile values, `TILE_DECAY.enabled = false` in
-> `src/core/Config.ts` reverts to exactly what you described, and
-> `TILE_DECAY.burnout = false` keeps the decay but stops tiles turning hostile.
+> `src/core/Config.ts` reverts to exactly what you described;
+> `TILE_DECAY.burnout = false` keeps the decay but stops tiles turning hostile;
+> and `refreshBurnedOnReentry`, `maxUpFraction` and `interval` tune how
+> forgiving the rot is without changing the idea.
 
 ---
 
@@ -48,8 +50,12 @@ bounce ─▶ steer in the air ─▶ pick a tile ─▶ land ─▶ tile effect
                                         …until the clock hits 0
 ```
 
-A single bounce is ~0.9s of hang time. That's the game's heartbeat and every
-decision fits inside it.
+A single bounce is ~1.2s of hang time and covers about four tiles (five and a
+half if charged). That's the game's heartbeat and every decision fits inside it.
+
+An earlier, snappier 0.9s bounce only reached one or two tiles, and playtesting
+killed it immediately: the arc *is* the thinking time, and a board you cannot
+reach across is a board you cannot make plans about.
 
 ## 3. Movement & controls
 
@@ -104,9 +110,20 @@ and a foot that visibly compresses on impact.
 | **BOOST** | Concentric squares | `multiplier + 1` outright | Depth ≥ 5 |
 | **FREEZE** | Crystalline lattice | Halts all tile decay for 4s | Depth ≥ 7 |
 
-**Spawn mix** (before decay does its work): ~62% number, ~26% up, 1–2 down, the
-remainder specials once unlocked. Decay then continuously shifts that mix toward
-up tiles, so the pressure ramps *within* a floor as well as across floors.
+**Spawn mix** (before decay does its work): ~68% number, ~20% up, 1–2 down, the
+remainder specials once unlocked. Decay then shifts that mix toward up tiles, so
+pressure ramps *within* a floor as well as across floors.
+
+Two governors keep that from running away, both added after the first pass made
+a floor unplayable within seconds:
+
+- **A hazard ceiling.** At most ~45% of a floor may be UP tiles at once. Past
+  that, burnouts go SPENT instead — dead weight rather than punishment. Decay
+  takes away opportunities; it does not stack up damage.
+- **Burned tiles refresh on re-entry.** Changing level restores every
+  burned-out tile on the floor you arrive at to a fresh number. Without this,
+  decay is a one-way ratchet and a single bad bounce compounds into a spiral
+  with no way out.
 
 Nothing is hidden by a fog of war or a face-down state — the tiles are honest.
 The uncertainty comes from the camera: looking straight down through a limited
@@ -122,8 +139,9 @@ smaller targets, tighter execution. Difficulty ramps without a difficulty knob.
 
 - **Descending** dissolves the current floor tile-by-tile in a radial wave from
   the down tile, revealing the next floor, and increments the multiplier.
-- **Ascending** regenerates the floor above completely fresh. That's deliberate
-  mercy: getting knocked up is a multiplier loss, not a dead board.
+- **Ascending** returns you to the floor you left, aged — but with its
+  burned-out tiles restored to numbers. Getting knocked up is a multiplier loss
+  and lost time, not a dead board.
 - The grid is bounded. Steering past the edge is softly clamped rather than
   killing you — there is no fail state except the clock.
 

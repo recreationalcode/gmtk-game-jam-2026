@@ -20,6 +20,13 @@ export interface Tile {
   flash: number;
   /** Set when a tile burns out, so the renderer can play the crackle once. */
   justBurnedOut: boolean;
+  /**
+   * True for an UP tile that got there by burning out, as opposed to one the
+   * level generator placed. Only the burned ones come back as numbers when the
+   * floor is re-entered — refreshing the authored hazards too would erase the
+   * floor's shape every time you changed level.
+   */
+  burned: boolean;
 }
 
 export function isScoring(kind: TileKind): boolean {

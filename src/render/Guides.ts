@@ -110,7 +110,9 @@ export class Guides {
     // Ring converges on the square exactly at touchdown. The player learns the
     // timing by watching it close rather than by reading a number.
     const lead = clamp01(timeToImpact / RING_LEAD);
-    const ringScale = floor.tileSize * 1.06 * (1 + lead * 2.6);
+    // Modest expansion. With the longer arc a wide lead ring becomes a
+    // screen-filling circle that reads as an effect rather than a cue.
+    const ringScale = floor.tileSize * 1.06 * (1 + lead * 1.7);
     this.ring.position.set(cx, y + 0.01, cz);
     this.ring.scale.setScalar(ringScale);
 
@@ -118,10 +120,12 @@ export class Guides {
     // Kept deliberately dim and off-white: a bright ring is the single
     // brightest thing on screen once bloom has it, and it drowns the tiles it
     // is supposed to be pointing at.
-    this.ringMat.opacity = 0.16 + closeness * 0.34;
+    // Saturated cyan puts two channels near full, so even a thin line sails
+    // over the bloom threshold. Alpha is the lever that actually controls it.
+    this.ringMat.opacity = 0.1 + closeness * 0.24;
     this.ringMat.color.copy(accent).lerp(WHITE, closeness * 0.4 + perfectFlash * 0.4);
 
-    this.squareMat.opacity = 0.35 + closeness * 0.4 + perfectFlash * 0.25;
+    this.squareMat.opacity = 0.26 + closeness * 0.32 + perfectFlash * 0.2;
     this.squareMat.color.copy(accent).lerp(WHITE, perfectFlash * 0.6);
 
     this.dropPoints[0]!.set(playerX, playerY, playerZ);

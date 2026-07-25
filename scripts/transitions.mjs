@@ -139,7 +139,49 @@ const failures = steps.filter(
   (s) => s.visibleTiles === 0 || s.dissolve > 0.001 || s.depth !== s.expectedDepth,
 );
 
-console.log(JSON.stringify({ steps, failures, pageErrors }, null, 1));
+// --- burned tiles must come back as numbers when a floor is re-entered -----
+//
+// Without this, decay is a one-way ratchet: every floor you have visited is
+// permanently worse than you left it, and one bad bounce compounds into a
+// spiral. Rot the surface floor hard, leave, come back, and check it recovered.
+await hover();
+const rot = await page.evaluate(() => {
+  const g = window.pogo.game;
+  // Force every number tile to the brink so the next ticks burn them out.
+  for (const t of g.floor.tiles) {
+    if (t.kind === 0) {
+      t.value = 1;
+      t.decayTimer = 0.05;
+    }
+  }
+  return null;
+});
+void rot;
+await page.waitForTimeout(1800);
+
+const before = await page.evaluate(() => {
+  const f = window.pogo.game.floor;
+  const k = f.tiles.reduce((m, t) => ((m[t.kind] = (m[t.kind] || 0) + 1), m), {});
+  return { numbers: k[0] || 0, up: k[2] || 0, burned: f.tiles.filter((t) => t.burned).length };
+});
+
+await descend();
+await ascend();
+
+const after = await page.evaluate(() => {
+  const f = window.pogo.game.floor;
+  const k = f.tiles.reduce((m, t) => ((m[t.kind] = (m[t.kind] || 0) + 1), m), {});
+  return { numbers: k[0] || 0, up: k[2] || 0, burned: f.tiles.filter((t) => t.burned).length };
+});
+
+const refresh = {
+  before,
+  after,
+  recovered: after.numbers > before.numbers && after.burned === 0,
+};
+if (!refresh.recovered) failures.push({ step: 'burned tiles did not refresh', ...refresh });
+
+console.log(JSON.stringify({ steps, refresh, failures, pageErrors }, null, 1));
 
 await browser.close();
 if (failures.length > 0 || pageErrors.length > 0) {

@@ -274,12 +274,12 @@ void main() {
     // enough of the accent bled in to keep the surface from reading as a hole.
     col = mix(vColor * 0.055, vColor, ink);
 
-    col += vColor * vState.y * 1.7 * ink;
+    col += vColor * vState.y * 0.75 * ink;
 
     // Tiles about to burn out breathe, so the board's decay is legible from
     // the top of the arc without reading every digit.
     float pulse = 0.5 + 0.5 * sin(uTime * 9.0);
-    col += vColor * vState.z * vState.z * pulse * 0.55 * ink;
+    col += vColor * vState.z * vState.z * pulse * 0.28 * ink;
   } else {
     col = vColor * 0.14;
   }

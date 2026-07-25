@@ -304,7 +304,7 @@ export class App {
         this.audio.gainTime();
         this.popupAt(`+${e.amount}s`, e.x, e.z, 'big');
         this.ring(e.x, e.z, 3.2, 0.5, hsl(PALETTE.timeHue, 0.9, 0.62).clone());
-        this.flash = Math.max(this.flash, 0.16);
+        this.flash = Math.max(this.flash, 0.09);
         break;
       case 'boost':
         this.audio.boost();
@@ -320,7 +320,7 @@ export class App {
         this.onSecondTick(e.secondsLeft);
         break;
       case 'endgame':
-        this.flash = Math.max(this.flash, 0.35);
+        this.flash = Math.max(this.flash, 0.2);
         this.game.addShake(0.5);
         break;
       case 'gameover':
@@ -348,8 +348,8 @@ export class App {
     if (e.quality === 'perfect') {
       this.audio.perfect(this.game.player.perfectStreak);
       this.perfectFlash = 1;
-      this.flash = Math.max(this.flash, 0.12);
-      this.ring(e.x, e.z, floor.tileSize * 5, 0.55, WHITE, 0.045);
+      this.flash = Math.max(this.flash, 0.05);
+      this.ring(e.x, e.z, floor.tileSize * 4.2, 0.55, this.accent, 0.045);
       if (this.game.player.perfectStreak >= 2) {
         this.popupAt(`PERFECT ×${this.game.player.perfectStreak}`, e.x, e.z);
       }
@@ -375,7 +375,7 @@ export class App {
   private onDescend(e: Extract<GameEvent, { type: 'descend' }>): void {
     this.audio.descend(e.depth);
     this.setAccent(e.depth);
-    this.flash = Math.max(this.flash, 0.42);
+    this.flash = Math.max(this.flash, 0.22);
     this.popupAt(`DEPTH −${e.depth}   ×${this.game.multiplier}`, e.x, e.z, 'big');
 
     const y = this.game.dissolving?.y ?? this.game.floor.y;
@@ -448,7 +448,7 @@ export class App {
     }
 
     // Everything glows a little harder as the clock runs out.
-    const brightness = 1 + this.endgameIntensity * 0.5;
+    const brightness = 1 + this.endgameIntensity * 0.3;
     this.fieldMain.setBrightness(brightness);
     this.fieldDissolving.setBrightness(brightness);
 

@@ -406,14 +406,19 @@ export class GameState {
   private ensureFloor(depth: number, entryX: number, entryZ: number): void {
     const existing = this.floors[depth];
     if (existing) {
-      const away = this.simTime - (this.leftFloorAt[depth] ?? this.simTime);
+      // Ageing while away is capped: coming back to a floor should feel like
+      // time passed, not like the floor died without you.
+      const away = Math.min(
+        TILE_DECAY.maxAwaySeconds,
+        this.simTime - (this.leftFloorAt[depth] ?? this.simTime),
+      );
       if (away > 0) this.catchUpDecay(existing, away);
       // Clear any leftover drop-through state before it becomes active again.
       if (this.dissolving === existing) {
         this.dissolving = null;
         this.dissolveLeft = 0;
       }
-      existing.restore();
+      existing.restore(this.rand);
       return;
     }
     const probe = new Floor(depth, this.rand, 0, 0);
@@ -426,6 +431,8 @@ export class GameState {
   private catchUpDecay(floor: Floor, seconds: number): void {
     if (!TILE_DECAY.enabled) return;
     let burned = 0;
+    let upCount = floor.countUp();
+    const upCeiling = Math.floor(floor.tiles.length * TILE_DECAY.maxUpFraction);
 
     for (const tile of floor.tiles) {
       if (tile.kind !== TileKind.Number) continue;
@@ -434,8 +441,11 @@ export class GameState {
         tile.value--;
         timer += TILE_DECAY.interval;
         if (tile.value <= 0) {
-          tile.kind = TILE_DECAY.burnout ? TileKind.Up : TileKind.Spent;
+          const asHazard = TILE_DECAY.burnout && upCount < upCeiling;
+          tile.kind = asHazard ? TileKind.Up : TileKind.Spent;
+          if (asHazard) upCount++;
           tile.value = 0;
+          tile.burned = true;
           burned++;
           break;
         }

@@ -36,17 +36,22 @@ export const SIM = {
 // ---------------------------------------------------------------------------
 // Pogo physics
 //
-// Derived so a lazy bounce lasts ~0.9s and peaks ~3m above the floor. At that
-// apex a 75° vertical FOV sees the whole starting grid; at the bottom of the
-// arc it sees under two tiles. That gap is the game: you plan at the top and
-// commit at the bottom, and buying altitude buys information.
+// Derived so a lazy bounce lasts ~1.2s, peaks ~4.2m above the floor, and covers
+// about four tiles. At that apex the lens sees most of the floor; at the bottom
+// of the arc it sees barely one tile. That gap is the game: you plan at the top
+// and commit at the bottom, and buying altitude buys information.
 // ---------------------------------------------------------------------------
 
 export const POGO = {
-  gravity: 30.0,
+  /**
+   * Lower than earth gravity on purpose. A 30 m/s² bounce was over in 0.9s and
+   * only covered a couple of tiles, which made the whole board feel out of
+   * reach; the arc is the thinking time, so shortening it removes the game.
+   */
+  gravity: 24.0,
 
   /** Apex height above the floor for an uncharged bounce, metres. */
-  baseApex: 3.05,
+  baseApex: 4.2,
   /** Apex multiplier for a charged (well-timed) bounce. */
   chargedApexScale: 1.55,
   /** Apex multiplier for a frame-perfect bounce. */
@@ -55,9 +60,13 @@ export const POGO = {
   /** Distance from the stick's foot up to the rider's eye, metres. */
   riderHeight: 2.2,
 
-  /** Horizontal steering. Limited on purpose — you steer, you do not fly. */
-  airAccel: 26.0,
-  airMaxSpeed: 6.0,
+  /**
+   * Horizontal steering. Still limited — you steer, you do not fly — but a
+   * normal bounce now crosses about four tiles and a charged one about five,
+   * instead of the one-to-two that made every floor feel like a cage.
+   */
+  airAccel: 30.0,
+  airMaxSpeed: 8.0,
   /** Fraction of horizontal speed retained through a landing. */
   landingSpeedRetention: 0.62,
   /** Drag applied to horizontal motion each second while airborne. */
@@ -143,12 +152,11 @@ export const enum TileKind {
 export const TILE_VALUES = {
   /**
    * Number tiles spawn with a value in this inclusive range, and the value is
-   * also the tile's lifetime in decay ticks — a 4 dies in four ticks. The floor
-   * of 4 exists because a 3 rots away before a player can realistically cross
-   * the board to reach it, which reads as the game cheating rather than as
-   * pressure.
+   * also the tile's lifetime in decay ticks — a 5 dies in five ticks. Combined
+   * with the decay interval that is 11–20 seconds of life, so a floor ages
+   * over a whole visit rather than collapsing into arrows within a few bounces.
    */
-  minSpawn: 4,
+  minSpawn: 5,
   maxSpawn: 9,
   /** Deeper floors spawn richer tiles: minSpawn rises by this per depth. */
   minSpawnPerDepth: 0.35,
@@ -165,15 +173,43 @@ export const TILE_DECAY = {
   enabled: true,
   burnout: true,
   /**
-   * Seconds per decrement. A bounce takes about 0.9s, so this is roughly "one
-   * tick per bounce" — the board decays at the speed you act, which is what
-   * makes the pressure feel fair instead of arbitrary.
+   * Seconds per decrement — roughly one tick every two bounces. Fast enough
+   * that you watch the numbers fall and feel the pressure, slow enough that a
+   * floor stays worth farming for a visit rather than turning into a wall of
+   * arrows in a few seconds.
    */
-  interval: 1.35,
+  interval: 2.5,
+
+  /**
+   * Ceiling on how much of a floor may be UP tiles at once, counting both the
+   * ones the generator placed and the ones that burned out.
+   *
+   * Past this, a tile that reaches zero goes SPENT instead of UP. The board
+   * still degrades — those tiles stop being worth anything — but it stops
+   * turning into a minefield where every landing costs you a level. Decay
+   * should take your opportunities away, not stack up punishment.
+   */
+  maxUpFraction: 0.45,
   /** Decay rate multiplier once the endgame starts. */
-  endgameScale: 1.5,
-  /** Stagger initial tick phase so a floor doesn't pulse in lockstep. */
-  phaseJitter: 0.8,
+  endgameScale: 1.35,
+  /** Stagger initial tick phase so a floor doesn't pulse — or die — in lockstep. */
+  phaseJitter: 1.0,
+
+  /**
+   * Burned-out tiles come back as numbers when you re-enter a floor.
+   *
+   * Without this, decay is a ratchet: every floor you have ever visited is
+   * strictly worse than when you left, so an UP tile compounds into a spiral
+   * you cannot climb out of. Refreshing them makes the countdown a recurring
+   * pressure rather than permanent damage, and keeps a bad bounce survivable.
+   */
+  refreshBurnedOnReentry: true,
+
+  /**
+   * Cap on how much ageing a floor accumulates while you are away, seconds.
+   * A long excursion should not mean returning to a corpse.
+   */
+  maxAwaySeconds: 6,
 } as const;
 
 export const FREEZE = {
@@ -193,8 +229,8 @@ export const SPECIAL_UNLOCK_DEPTH = {
  * so the authored mix stays generous.
  */
 export const SPAWN_MIX = {
-  number: 0.62,
-  up: 0.26,
+  number: 0.68,
+  up: 0.2,
   /** Remainder goes to whichever specials are unlocked. */
   timeWeight: 0.45,
   boostWeight: 0.35,
@@ -346,8 +382,8 @@ export const PALETTE = {
   /** Hue for freeze tiles. */
   freezeHue: 196,
 
-  lineSaturation: 0.85,
-  lineLightness: 0.62,
+  lineSaturation: 0.82,
+  lineLightness: 0.52,
   spentLightness: 0.18,
 } as const;
 
@@ -378,13 +414,19 @@ export const BLOOM = {
    * around 0.85 lands near 0.68 — so this sits just under the glowing strokes
    * and well above the dark tile fill.
    */
-  threshold: 0.32,
+  /**
+   * High enough that only the brightest strokes bloom at all. Bloom accumulates
+   * across everything above the threshold, so a floor full of number tiles adds
+   * up far faster than a test scene with three — which is exactly how a setting
+   * that looks right in isolation ends up glaring in play.
+   */
+  threshold: 0.45,
   /**
    * Kept tight. UnrealBloomPass's widest mip smears glow across the entire
    * frame, which lifts the blacks and undoes the "dark void" the art direction
    * depends on. Local glow, not atmosphere.
    */
-  radius: 0.3,
+  radius: 0.28,
 } as const;
 
 export const QUALITY: Record<QualitySettings['name'], QualitySettings> = {
@@ -402,7 +444,7 @@ export const QUALITY: Record<QualitySettings['name'], QualitySettings> = {
     name: 'medium',
     maxPixelRatio: 1.5,
     bloom: true,
-    bloomStrength: 0.42,
+    bloomStrength: 0.30,
     particleBudget: 320,
     trails: true,
     antialias: false,
@@ -412,7 +454,7 @@ export const QUALITY: Record<QualitySettings['name'], QualitySettings> = {
     name: 'high',
     maxPixelRatio: 2.0,
     bloom: true,
-    bloomStrength: 0.58,
+    bloomStrength: 0.38,
     particleBudget: 640,
     trails: true,
     antialias: true,

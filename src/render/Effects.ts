@@ -143,7 +143,7 @@ void main() {
   float fade = pow(1.0 - vAge, 1.6);
   float alpha = band * fade;
   if (alpha < 0.004) discard;
-  gl_FragColor = vec4(vColor * alpha * 2.2, alpha);
+  gl_FragColor = vec4(vColor * alpha * 1.15, alpha);
 }
 `;
 
@@ -315,6 +315,6 @@ void main() {
   vec2 d = gl_PointCoord - 0.5;
   float r = dot(d, d) * 4.0;
   float mask = 1.0 - smoothstep(0.35, 1.0, r);
-  gl_FragColor = vec4(vColor * mask * vAlpha * 2.0, mask * vAlpha);
+  gl_FragColor = vec4(vColor * mask * vAlpha * 1.1, mask * vAlpha);
 }
 `;

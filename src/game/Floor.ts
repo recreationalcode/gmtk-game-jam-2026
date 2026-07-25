@@ -90,10 +90,7 @@ export class Floor {
 
   private generate(rand: Rand, entryGX: number, entryGY: number): void {
     const count = this.side * this.side;
-    const minValue = Math.min(
-      TILE_VALUES.maxSpawn,
-      Math.round(TILE_VALUES.minSpawn + this.depth * TILE_VALUES.minSpawnPerDepth),
-    );
+    const minValue = this.minSpawnValue();
 
     const specials = this.unlockedSpecials();
 
@@ -110,11 +107,20 @@ export class Floor {
         alive: 0,
         flash: 0,
         justBurnedOut: false,
+        burned: false,
       });
     }
 
     this.placeDownTiles(rand, entryGX, entryGY);
     this.guaranteeSomeScoring(rand, minValue, entryGX, entryGY);
+  }
+
+  /** Lowest value a number tile spawns with on this floor. */
+  minSpawnValue(): number {
+    return Math.min(
+      TILE_VALUES.maxSpawn,
+      Math.round(TILE_VALUES.minSpawn + this.depth * TILE_VALUES.minSpawnPerDepth),
+    );
   }
 
   private unlockedSpecials(): Array<{ kind: TileKind; weight: number }> {
@@ -224,6 +230,8 @@ export class Floor {
    */
   update(dt: number, decayScale: number, frozen: boolean): number {
     let burnedOut = 0;
+    let upCount = this.countUp();
+    const upCeiling = Math.floor(this.tiles.length * TILE_DECAY.maxUpFraction);
 
     for (const tile of this.tiles) {
       if (tile.alive < 1) tile.alive = Math.min(1, tile.alive + dt * 3.2);
@@ -239,9 +247,14 @@ export class Floor {
         tile.value--;
         tile.flash = 0.5;
         if (tile.value <= 0) {
-          tile.kind = TILE_DECAY.burnout ? TileKind.Up : TileKind.Spent;
+          // Once the floor has as many hazards as it is allowed, further
+          // burnouts go dead rather than hostile.
+          const asHazard = TILE_DECAY.burnout && upCount < upCeiling;
+          tile.kind = asHazard ? TileKind.Up : TileKind.Spent;
+          if (asHazard) upCount++;
           tile.value = 0;
           tile.justBurnedOut = true;
+          tile.burned = true;
           tile.flash = 1;
           burnedOut++;
           break;
@@ -263,10 +276,30 @@ export class Floor {
    * Replaying the spawn animation is not just cleanup: it reads as the floor
    * re-forming above you, which is the right story for coming back up.
    */
-  restore(): void {
+  restore(rand: Rand): void {
     this.dissolve = 0;
     this.dissolveOrigin = null;
-    for (const tile of this.tiles) tile.alive = 0;
+
+    const minValue = this.minSpawnValue();
+    for (const tile of this.tiles) {
+      tile.alive = 0;
+      if (!tile.burned || !TILE_DECAY.refreshBurnedOnReentry) continue;
+
+      // Came back from the dead. Authored UP tiles are left alone.
+      tile.kind = TileKind.Number;
+      tile.value = rand.int(minValue, TILE_VALUES.maxSpawn);
+      tile.decayTimer =
+        TILE_DECAY.interval * rand.range(1 - TILE_DECAY.phaseJitter * 0.5, 1);
+      tile.burned = false;
+      tile.flash = 1;
+    }
+  }
+
+  /** How many tiles currently send the player back up a level. */
+  countUp(): number {
+    let n = 0;
+    for (const t of this.tiles) if (t.kind === TileKind.Up) n++;
+    return n;
   }
 
   /** Number of tiles still worth landing on. Drives the "floor is dead" nudge. */

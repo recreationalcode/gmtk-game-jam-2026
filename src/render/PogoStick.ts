@@ -109,7 +109,7 @@ export class PogoStick {
     // Coils bunch as the spring shortens, which is the detail that makes a
     // helix read as a spring rather than a decorative squiggle.
     const turns = SPRING_TURNS;
-    const radius = 0.105 + compression * 0.09;
+    const radius = 0.078 + compression * 0.065;
 
     for (let i = 0; i <= SPRING_SEGMENTS; i++) {
       const t = i / SPRING_SEGMENTS;
@@ -139,14 +139,14 @@ const SPRING_TURNS = 7;
 
 /** The foot pad, drawn as an outline so it never masks the landing tile. */
 function buildFootGeometry(): THREE.BufferGeometry {
-  const pad = new THREE.CylinderGeometry(0.15, 0.185, 0.07, 8);
-  pad.translate(0, 0.035, 0);
+  const pad = new THREE.CylinderGeometry(0.105, 0.13, 0.055, 8);
+  pad.translate(0, 0.028, 0);
   return pad;
 }
 
 /** The lower shaft — the part that stays with the ground under compression. */
 function buildShaftGeometry(): THREE.BufferGeometry {
-  const shaft = new THREE.CylinderGeometry(0.05, 0.05, 0.9, 6);
+  const shaft = new THREE.CylinderGeometry(0.038, 0.038, 0.9, 6);
   shaft.translate(0, 0.5, 0);
   return shaft;
 }
@@ -168,40 +168,40 @@ function buildUpperGeometry(): THREE.BufferGeometry {
   // `riderHeight` puts its top vertices exactly at the camera, and a cylinder
   // straddling the near plane projects its side edges as long lines shooting
   // across the whole screen.
-  const shaftTop = eye - 0.34;
+  const shaftTop = eye - 0.5;
   const shaftLength = shaftTop - 0.9;
-  const shaft = new THREE.CylinderGeometry(0.055, 0.055, shaftLength, 6);
+  const shaft = new THREE.CylinderGeometry(0.042, 0.042, shaftLength, 6);
   shaft.translate(0, 0.9 + shaftLength / 2, 0);
   parts.push(shaft);
 
   // Footpegs with boots on them, well down the shaft so they read as *your
   // feet, far below* rather than as blocks floating in front of the lens.
   for (const side of [-1, 1]) {
-    const peg = new THREE.BoxGeometry(0.15, 0.035, 0.065);
-    peg.translate(side * 0.13, eye - 1.3, 0);
+    const peg = new THREE.BoxGeometry(0.115, 0.028, 0.05);
+    peg.translate(side * 0.1, eye - 1.46, 0);
     parts.push(peg);
 
-    const boot = new THREE.BoxGeometry(0.12, 0.045, 0.2);
-    boot.translate(side * 0.17, eye - 1.27, -0.01);
+    const boot = new THREE.BoxGeometry(0.09, 0.035, 0.15);
+    boot.translate(side * 0.13, eye - 1.43, -0.008);
     parts.push(boot);
   }
 
   // Handlebar, offset toward the top of frame so it does not sit directly on
   // the shaft axis — from straight above, an aligned bar hides the shaft
   // entirely and the rig stops reading as a pogo stick at all.
-  const barZ = -0.13;
-  const bar = new THREE.BoxGeometry(0.42, 0.032, 0.032);
-  bar.translate(0, eye - 0.62, barZ);
+  const barZ = -0.1;
+  const bar = new THREE.BoxGeometry(0.3, 0.024, 0.024);
+  bar.translate(0, eye - 0.85, barZ);
   parts.push(bar);
 
-  const stem = new THREE.BoxGeometry(0.036, 0.032, 0.15);
-  stem.translate(0, eye - 0.62, barZ / 2);
+  const stem = new THREE.BoxGeometry(0.028, 0.024, 0.12);
+  stem.translate(0, eye - 0.85, barZ / 2);
   parts.push(stem);
 
   for (const side of [-1, 1]) {
-    const grip = new THREE.CylinderGeometry(0.03, 0.03, 0.12, 6);
+    const grip = new THREE.CylinderGeometry(0.024, 0.024, 0.095, 6);
     grip.rotateZ(Math.PI / 2);
-    grip.translate(side * 0.17, eye - 0.62, barZ);
+    grip.translate(side * 0.125, eye - 0.85, barZ);
     parts.push(grip);
   }
 
