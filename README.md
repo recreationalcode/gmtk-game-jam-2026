@@ -35,6 +35,7 @@ npm run package      # build + verified itch.io zip in build/
 | `npm run package` | Build, verify the layout, and zip for itch.io |
 | `npm run smoke` | Headless Chromium: boot, play, screenshot, report errors |
 | `npm run fullrun` | Headless full match: endgame ramp → score screen → submit |
+| `npm run transitions` | Regression: every floor stays renderable across descend/ascend |
 | `npm run diag` | Screenshot the procedural glyphs, dump floor balance per depth |
 
 `npm run smoke` needs `npm run preview` running in another shell; `npm run

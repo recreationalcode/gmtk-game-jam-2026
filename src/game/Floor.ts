@@ -252,6 +252,23 @@ export class Floor {
     return burnedOut;
   }
 
+  /**
+   * Re-entering a floor we previously dropped through.
+   *
+   * Floors persist for the whole run, but `dissolve` is left at 1 once the
+   * drop-through animation finishes — so without this, returning to a floor
+   * makes it the active floor with every tile scaled to zero. It renders as an
+   * empty void you can still bounce on.
+   *
+   * Replaying the spawn animation is not just cleanup: it reads as the floor
+   * re-forming above you, which is the right story for coming back up.
+   */
+  restore(): void {
+    this.dissolve = 0;
+    this.dissolveOrigin = null;
+    for (const tile of this.tiles) tile.alive = 0;
+  }
+
   /** Number of tiles still worth landing on. Drives the "floor is dead" nudge. */
   countUseful(): number {
     let n = 0;

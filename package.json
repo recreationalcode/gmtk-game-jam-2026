@@ -13,7 +13,8 @@
     "package": "npm run build && node scripts/package-itch.mjs",
     "smoke": "node scripts/smoke.mjs",
     "diag": "node scripts/diag.mjs",
-    "fullrun": "node scripts/fullrun.mjs"
+    "fullrun": "node scripts/fullrun.mjs",
+    "transitions": "node scripts/transitions.mjs"
   },
   "devDependencies": {
     "@types/three": "^0.185.1",

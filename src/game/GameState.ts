@@ -408,6 +408,12 @@ export class GameState {
     if (existing) {
       const away = this.simTime - (this.leftFloorAt[depth] ?? this.simTime);
       if (away > 0) this.catchUpDecay(existing, away);
+      // Clear any leftover drop-through state before it becomes active again.
+      if (this.dissolving === existing) {
+        this.dissolving = null;
+        this.dissolveLeft = 0;
+      }
+      existing.restore();
       return;
     }
     const probe = new Floor(depth, this.rand, 0, 0);
