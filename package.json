@@ -14,7 +14,9 @@
     "smoke": "node scripts/smoke.mjs",
     "diag": "node scripts/diag.mjs",
     "fullrun": "node scripts/fullrun.mjs",
-    "transitions": "node scripts/transitions.mjs"
+    "transitions": "node scripts/transitions.mjs",
+    "coach": "node scripts/coach.mjs",
+    "leaderboard": "node scripts/leaderboard-ui.mjs"
   },
   "devDependencies": {
     "@types/three": "^0.185.1",

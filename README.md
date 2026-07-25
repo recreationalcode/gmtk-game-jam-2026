@@ -36,6 +36,8 @@ npm run package      # build + verified itch.io zip in build/
 | `npm run smoke` | Headless Chromium: boot, play, screenshot, report errors |
 | `npm run fullrun` | Headless full match: endgame ramp → score screen → submit |
 | `npm run transitions` | Regression: every floor stays renderable across descend/ascend |
+| `npm run leaderboard` | Regression: board reachable before playing, and Back/Escape routing |
+| `npm run coach` | Regression: tips fire once, carry tile art, persist across runs |
 | `npm run diag` | Screenshot the procedural glyphs, dump floor balance per depth |
 
 `npm run smoke` needs `npm run preview` running in another shell; `npm run
@@ -66,9 +68,9 @@ dumps floor composition per depth.
 ```
 src/
   core/        Config · Input · Audio · Rand · MathUtil
-  game/        GameState · Floor · Player · Tile        ← no three.js, no DOM
+  game/        GameState · Floor · Player · Tile · Coach ← no three.js, no DOM
   render/      Renderer · TileField · PlayerRig · PogoStick · Effects · Guides
-  ui/          HUD · Screens · style.css
+  ui/          HUD · Screens · Notifications · Stats · style.css
   net/         Leaderboard
   App.ts       wires simulation → presentation
 ```

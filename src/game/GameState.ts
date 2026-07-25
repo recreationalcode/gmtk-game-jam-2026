@@ -28,8 +28,12 @@ export type GameEvent =
       x: number;
       z: number;
     }
-  | { type: 'descend'; depth: number; x: number; z: number }
-  | { type: 'ascend'; depth: number; x: number; z: number }
+  // Both carry the multiplier as it stood *at the moment of the transition*.
+  // Consumers drain events after the whole frame has simulated, by which point
+  // a later landing may already have changed it again — reading the live value
+  // reports the wrong number for the event being handled.
+  | { type: 'descend'; depth: number; multiplier: number; x: number; z: number }
+  | { type: 'ascend'; depth: number; multiplier: number; x: number; z: number }
   | { type: 'burnout'; count: number }
   | { type: 'gainTime'; amount: number; x: number; z: number }
   | { type: 'boost'; multiplier: number; x: number; z: number }
@@ -342,7 +346,7 @@ export class GameState {
 
     this.hitstop = Math.max(this.hitstop, FEEL.hitstopDescend);
     this.addShake(FEEL.shakeOnDescend);
-    this.events.push({ type: 'descend', depth: this.depth, x, z });
+    this.events.push({ type: 'descend', depth: this.depth, multiplier: this.multiplier, x, z });
   }
 
   private ascend(x: number, z: number, tile: Tile): void {
@@ -352,7 +356,7 @@ export class GameState {
       tile.kind = TileKind.Spent;
       this.player.launchToApex(ascendApex() * 0.5);
       this.addShake(FEEL.shakeOnAscend * 0.5);
-      this.events.push({ type: 'ascend', depth: 0, x, z });
+      this.events.push({ type: 'ascend', depth: 0, multiplier: this.multiplier, x, z });
       return;
     }
 
@@ -368,7 +372,7 @@ export class GameState {
 
     this.hitstop = Math.max(this.hitstop, FEEL.hitstopAscend);
     this.addShake(FEEL.shakeOnAscend);
-    this.events.push({ type: 'ascend', depth: this.depth, x, z });
+    this.events.push({ type: 'ascend', depth: this.depth, multiplier: this.multiplier, x, z });
   }
 
   private gainTime(tile: Tile, x: number, z: number): void {

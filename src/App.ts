@@ -12,6 +12,7 @@ import {
 } from './core/Config';
 import { Input } from './core/Input';
 import { clamp, clamp01, formatScore, lerp } from './core/MathUtil';
+import { Coach, type SeenStore } from './game/Coach';
 import { GameState, type GameEvent } from './game/GameState';
 import { Leaderboard } from './net/Leaderboard';
 import { Particles, Shockwaves } from './render/Effects';
@@ -22,6 +23,7 @@ import { PlayerRig } from './render/PlayerRig';
 import { Renderer } from './render/Renderer';
 import { TileField } from './render/TileField';
 import { HUD } from './ui/HUD';
+import { Notifications } from './ui/Notifications';
 import { Screens } from './ui/Screens';
 import { Stats } from './ui/Stats';
 
@@ -50,6 +52,9 @@ export class App {
   private readonly hud: HUD;
   private readonly screens: Screens;
   private readonly stats: Stats;
+  /** Public for the dev-only inspection handle installed by main.ts. */
+  readonly notifications: Notifications;
+  private readonly coach = new Coach(new LocalSeenStore());
 
   /**
    * Scales every camera shake, chromatic separation and screen flash. Motion
@@ -106,6 +111,7 @@ export class App {
 
     this.motionScale = prefersReducedMotion() ? 0.25 : 1;
     this.hud = new HUD(uiRoot);
+    this.notifications = new Notifications(uiRoot);
     this.stats = new Stats(uiRoot);
     this.screens = new Screens(uiRoot, {
       onPlay: () => this.startRun(),
@@ -157,6 +163,8 @@ export class App {
     this.perfectFlash = 0;
     this.rig.reset();
     this.particles.clear();
+    this.coach.reset();
+    this.notifications.clear();
     this.hud.resetScore();
     this.hud.setEndgame(false);
     this.hud.setVisible(true);
@@ -171,6 +179,7 @@ export class App {
 
   private toTitle(): void {
     this.phase = 'title';
+    this.notifications.clear();
     this.audio.stopMusic();
     this.input.setEnabled(false);
     this.hud.setVisible(false);
@@ -190,6 +199,7 @@ export class App {
   private pause(): void {
     if (this.phase !== 'playing') return;
     this.phase = 'paused';
+    this.notifications.clear();
     this.input.setEnabled(false);
     this.audio.stopMusic();
     this.screens.show('pause');
@@ -228,10 +238,13 @@ export class App {
     if (this.phase === 'playing') {
       this.simulate(now, dt);
       this.game.drainEvents(this.handleEvent);
+      this.coach.update(dt, this.game);
+      this.notifications.push(this.coach.drain());
     } else if (this.phase === 'title') {
       this.game.stepIdle(dt);
     }
 
+    this.notifications.update(dt);
     this.present(dt);
     this.renderer.render();
 
@@ -290,6 +303,7 @@ export class App {
   // -- events --------------------------------------------------------------
 
   private readonly handleEvent = (e: GameEvent): void => {
+    this.coach.onEvent(e, this.game);
     switch (e.type) {
       case 'land':
         this.onLand(e);
@@ -380,7 +394,7 @@ export class App {
 
   private onDescend(e: Extract<GameEvent, { type: 'descend' }>): void {
     this.audio.descend(e.depth);
-    this.audio.multiplierUp(this.game.multiplier);
+    this.audio.multiplierUp(e.multiplier);
     this.setAccent(e.depth);
     this.guides.resetLock();
     this.flash = Math.max(this.flash, 0.1);
@@ -388,8 +402,8 @@ export class App {
     // Gaining a multiplier is the biggest thing that happens in a run — it is
     // worth more than any single tile — so it gets the loudest moment: a huge
     // centred numeral, a triple shockwave, and the deepest hitstop in the game.
-    this.hud.celebrateMultiplier(this.game.multiplier);
-    this.popupAt(`×${this.game.multiplier}`, e.x, e.z, 'mult');
+    this.hud.celebrateMultiplier(e.multiplier);
+    this.popupAt(`×${e.multiplier}`, e.x, e.z, 'mult');
 
     const y = this.game.dissolving?.y ?? this.game.floor.y;
     const downColor = hsl(PALETTE.downHue, 0.9, 0.6).clone();
@@ -404,7 +418,7 @@ export class App {
     this.setAccent(e.depth);
     this.guides.resetLock();
     const hostile = hsl(PALETTE.hostileHue, 0.82, 0.55).clone();
-    this.popupAt(`×${this.game.multiplier}`, e.x, e.z, 'hostile');
+    this.popupAt(`×${e.multiplier}`, e.x, e.z, 'hostile');
     this.ring(e.x, e.z, 16, 0.7, hostile, 0.05);
     this.particles.burst(e.x, this.game.floor.y, e.z, 40, 7, hostile, 1.0, 2.6, 0.9);
   }
@@ -417,6 +431,7 @@ export class App {
 
   private onGameOver(): void {
     this.phase = 'over';
+    this.notifications.clear();
     this.audio.gameOver();
     this.input.setEnabled(false);
     this.hud.setVisible(false);
@@ -599,6 +614,49 @@ export class App {
 }
 
 const WHITE = new THREE.Color(1, 1, 1);
+
+/**
+ * Remembers which tips a player has already been shown, across runs and across
+ * sessions. A jam game that re-teaches you the charged bounce on your ninth
+ * attempt is worse than one that never taught you at all.
+ */
+class LocalSeenStore implements SeenStore {
+  private static readonly KEY = 'pogodrop.coach.v1';
+  private readonly counts: Record<string, number>;
+
+  constructor() {
+    this.counts = LocalSeenStore.load();
+  }
+
+  private static load(): Record<string, number> {
+    try {
+      const raw = localStorage.getItem(LocalSeenStore.KEY);
+      if (!raw) return {};
+      const parsed: unknown = JSON.parse(raw);
+      if (typeof parsed !== 'object' || parsed === null) return {};
+      const out: Record<string, number> = {};
+      for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+        if (typeof v === 'number' && Number.isFinite(v)) out[k] = v;
+      }
+      return out;
+    } catch {
+      return {};
+    }
+  }
+
+  count(id: string): number {
+    return this.counts[id] ?? 0;
+  }
+
+  record(id: string): void {
+    this.counts[id] = this.count(id) + 1;
+    try {
+      localStorage.setItem(LocalSeenStore.KEY, JSON.stringify(this.counts));
+    } catch {
+      /* Private browsing: tips simply repeat next session. */
+    }
+  }
+}
 
 /**
  * Draw the favicon at runtime rather than shipping an .ico. Keeps the "no image

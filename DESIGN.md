@@ -166,6 +166,32 @@ Depth is the dominant term, so the strategy the game teaches is *dive first,
 farm second* — which is exactly the behaviour that makes the game exciting to
 watch and to play.
 
+## 7b. Teaching, just in time
+
+There is no tutorial. A **coach** watches the event stream and surfaces a single
+toast at the moment a thing first becomes relevant — the first TIME tile you
+collect explains what clock tiles are, seven landings without a timed press
+suggests trying one, coming back up a level explains that burned tiles refresh.
+
+The rules that keep it from becoming an irritation:
+
+- **Just in time, never up front.** Nothing is explained before it is on the
+  board in front of you. The guide screen exists for players who want it.
+- **Say it once.** Each notice carries a lifetime show budget persisted in
+  `localStorage`. Discoveries fire once ever; behavioural nudges get two or
+  three chances across runs, because not having found the charged bounce on run
+  one is worth mentioning again on run three.
+- **One at a time.** A queue with a minimum gap, and anything that waits more
+  than ten seconds behind other notices is dropped rather than shown out of
+  context.
+- **Silence during the endgame.** The last ten seconds are already the loudest
+  part of the game.
+
+The rules live in `src/game/Coach.ts` with no DOM dependency; the toast lives in
+`src/ui/Notifications.ts`. Notices carry the real tile artwork, drawn through
+the same procedural code the board uses, so an explanation can never depict a
+tile that does not match the one on screen.
+
 ## 8. The final ten seconds
 
 At `t ≤ 10s` the game changes state visibly and audibly:
