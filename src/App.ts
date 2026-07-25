@@ -6,12 +6,13 @@ import {
   FLOOR,
   PALETTE,
   POGO,
+  NOTICE_TIME,
   SIM,
   TileKind,
   prefersReducedMotion,
 } from './core/Config';
 import { Input } from './core/Input';
-import { clamp, clamp01, formatScore, lerp } from './core/MathUtil';
+import { clamp, clamp01, damp, formatScore, lerp, smoothstep } from './core/MathUtil';
 import { Coach, type SeenStore } from './game/Coach';
 import { GameState, type GameEvent } from './game/GameState';
 import { Leaderboard } from './net/Leaderboard';
@@ -46,7 +47,8 @@ export class App {
   private readonly audio = new AudioEngine();
   private readonly leaderboard = new Leaderboard();
 
-  private readonly input: Input;
+  /** Public for the dev-only inspection handle installed by main.ts. */
+  readonly input: Input;
   private readonly renderer: Renderer;
   private readonly rig: PlayerRig;
   private readonly hud: HUD;
@@ -73,6 +75,15 @@ export class App {
   private accumulator = 0;
   private lastFrame = 0;
   private clock = 0;
+
+  /**
+   * Simulated time, in seconds. Distinct from wall time because notices dilate
+   * the simulation — and input timestamps are taken against *this* clock, so a
+   * dilated bounce window stays exactly as wide in simulated seconds as it is
+   * at full speed.
+   */
+  private simClock = 0;
+  private timeScale = 1;
   private flash = 0;
   private endgameIntensity = 0;
   private perfectFlash = 0;
@@ -123,6 +134,7 @@ export class App {
       onToggleSound: (on) => this.audio.setMuted(!on),
     });
 
+    this.input.setClockSource(() => this.simClock);
     this.input.onAnyInput.add(() => void this.audio.unlock());
     this.input.onPause.add(() => {
       // Escape backs out of the guide or the leaderboard first; only then does
@@ -158,6 +170,7 @@ export class App {
     this.game.start();
     this.submitted = false;
     this.accumulator = 0;
+    this.timeScale = 1;
     this.flash = 0;
     this.endgameIntensity = 0;
     this.perfectFlash = 0;
@@ -231,21 +244,29 @@ export class App {
     this.lastFrame = now;
     // Clamp so a backgrounded tab returning does not simulate a thousand steps.
     const dt = clamp(raw, 0, SIM.maxFrameDelta);
-    this.clock += dt;
+
+    // Notices dilate time so they can be read mid-arc. The scale is eased
+    // rather than stepped, so entering and leaving slow motion is a ramp.
+    this.timeScale = damp(this.timeScale, this.targetTimeScale(), NOTICE_TIME.smoothing, dt);
+    const simDt = dt * this.timeScale;
+    this.clock += simDt;
 
     this.input.update();
 
     if (this.phase === 'playing') {
-      this.simulate(now, dt);
+      this.simulate(simDt);
       this.game.drainEvents(this.handleEvent);
-      this.coach.update(dt, this.game);
+      this.coach.touchMode = this.input.touchDetected;
+      this.coach.update(simDt, this.game);
       this.notifications.push(this.coach.drain());
     } else if (this.phase === 'title') {
-      this.game.stepIdle(dt);
+      this.game.stepIdle(simDt);
     }
 
+    // Reading time is real time: the toast must not linger just because the
+    // world slowed down for it.
     this.notifications.update(dt);
-    this.present(dt);
+    this.present(simDt, dt);
     this.renderer.render();
 
     this.stats.update(dt, this.renderer.renderer, {
@@ -253,6 +274,7 @@ export class App {
       dpr: this.renderer.devicePixelRatioUsed.toFixed(2),
       phase: this.phase,
       depth: this.game.depth,
+      scale: this.timeScale.toFixed(2),
       eye: (this.game.player.eyeY - this.game.floor.y).toFixed(2),
       vy: this.game.player.vy.toFixed(1),
       flash: this.flash.toFixed(2),
@@ -261,7 +283,24 @@ export class App {
     });
   };
 
-  private simulate(now: number, dt: number): void {
+  /**
+   * Slow motion while a notice is up, easing back to full speed over the second
+   * half of its life so play resumes before the toast leaves.
+   */
+  private targetTimeScale(): number {
+    if (this.phase !== 'playing') return 1;
+    const progress = this.notifications.readingProgress();
+    if (progress === null) return 1;
+
+    // A full envelope: ease down, hold, ease back up. Both ends are shaped
+    // here rather than left to the damping, so the ramp is smooth even when
+    // the frame rate is too low for damping to hide a step.
+    const entered = smoothstep(0, NOTICE_TIME.entryFraction, progress);
+    const released = smoothstep(NOTICE_TIME.holdFraction, 1, progress);
+    return lerp(1, NOTICE_TIME.slowScale, entered * (1 - released));
+  }
+
+  private simulate(dt: number): void {
     this.accumulator += dt;
 
     // Steering is resolved through the camera's own basis, so a rolled or
@@ -280,24 +319,23 @@ export class App {
     const steerZ =
       this.steerRight.z * this.input.steer.x + this.steerForward.z * this.input.steer.y;
 
-    // Sub-step time is derived from the un-simulated remainder, so an input's
-    // age is measured against the moment it is actually evaluated. Using the
-    // raw frame time here would smear timing accuracy by a whole frame — which
-    // is a third of the perfect window.
-    let simNow = now - this.accumulator;
+    // Every sub-step advances the simulated clock, and input ages are measured
+    // against it. Using wall time here would smear timing accuracy by a whole
+    // frame — a third of the perfect window — and would break outright under
+    // dilation, where wall seconds and simulated seconds are not the same unit.
     let steps = 0;
 
     while (this.accumulator >= STEP && steps < SIM.maxStepsPerFrame) {
-      simNow += STEP;
-      const age = this.input.peekBounceAge(simNow);
-      const consumed = this.game.step(STEP, simNow, steerX, steerZ, age);
+      this.simClock += STEP;
+      const age = this.input.peekBounceAge(this.simClock);
+      const consumed = this.game.step(STEP, this.simClock, steerX, steerZ, age);
       if (consumed) this.input.consumeBounce();
       this.accumulator -= STEP;
       steps++;
     }
 
     if (steps >= SIM.maxStepsPerFrame) this.accumulator = 0;
-    this.input.expireBounce(now, BOUNCE_TIMING.inputBuffer);
+    this.input.expireBounce(this.simClock, BOUNCE_TIMING.inputBuffer);
   }
 
   // -- events --------------------------------------------------------------
@@ -444,7 +482,12 @@ export class App {
 
   // -- presentation --------------------------------------------------------
 
-  private present(dt: number): void {
+  /**
+   * @param dt simulated seconds — drives everything in the world
+   * @param realDt wall seconds — drives the HUD, which should not crawl in
+   * slow motion
+   */
+  private present(dt: number, realDt: number): void {
     const game = this.game;
     const floor = game.floor;
 
@@ -536,7 +579,7 @@ export class App {
 
     this.hud.setEndgame(game.endgame && this.phase === 'playing');
     this.hud.update(
-      dt,
+      realDt,
       game.timeLeft,
       game.score,
       game.multiplier,
@@ -545,7 +588,7 @@ export class App {
     );
     if (this.input.touchDetected) this.hud.updateTouchStick(this.input);
 
-    this.audio.setMusicState(game.depth, this.endgameIntensity);
+    this.audio.setMusicState(game.depth, this.endgameIntensity, this.timeScale);
   }
 
   // -- helpers -------------------------------------------------------------

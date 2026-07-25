@@ -16,7 +16,8 @@
     "fullrun": "node scripts/fullrun.mjs",
     "transitions": "node scripts/transitions.mjs",
     "coach": "node scripts/coach.mjs",
-    "leaderboard": "node scripts/leaderboard-ui.mjs"
+    "leaderboard": "node scripts/leaderboard-ui.mjs",
+    "touch": "node scripts/touch.mjs"
   },
   "devDependencies": {
     "@types/three": "^0.185.1",

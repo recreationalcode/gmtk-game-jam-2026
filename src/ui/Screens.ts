@@ -209,9 +209,9 @@ export class Screens {
 
         <h2>Timing your bounce</h2>
         <p>
-          A ring closes in on the tile you are about to hit. Press exactly as it meets the
-          square for a <b>PERFECT</b> bounce &mdash; higher, further, and it builds a combo
-          multiplier. Mashing does not work: the first press wins, so one deliberate press
+          A ring closes in on the tile you are about to hit. Press &mdash; or on touch,
+          <b>release</b> &mdash; exactly as it meets the square for a <b>PERFECT</b> bounce:
+          higher, further, and it builds a combo multiplier. Mashing does not work: the first press wins, so one deliberate press
           beats eight panicked ones.
         </p>
 
@@ -468,7 +468,7 @@ const CONTROL_ROWS: ReadonlyArray<readonly [string, string]> = [
   ['<kbd>Move mouse</kbd>', 'Steer — the screen is the floor, point where you want to go'],
   ['<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>', 'Steer with the keyboard instead'],
   ['<kbd>Space</kbd> / <kbd>Click</kbd>', 'Time your bounce'],
-  ['<kbd>Drag</kbd>', 'On touch: drag to steer, tap to bounce'],
+  ['<kbd>Touch</kbd>', 'Hold and drag to aim, then release to bounce'],
   ['<kbd>Esc</kbd> / <kbd>P</kbd>', 'Pause'],
 ];
 

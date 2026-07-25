@@ -347,12 +347,13 @@ body {
 /* Notices                                                                 */
 /* --------------------------------------------------------------------- */
 
-/* Top-centre: the one region of the frame no HUD element occupies, and far
-   enough from the middle that it never covers the tile being aimed at. */
+/* Bottom-centre, clear of the depth and multiplier corners below it and of the
+   combo pip beneath that. Low enough that it never covers the tile being aimed
+   at, which sits under the middle of the frame. */
 #notice {
   --notice-color: #7fd4ff;
   position: absolute;
-  top: calc(var(--safe-top) + 5.2rem);
+  bottom: calc(var(--safe-bottom) + 6rem);
   left: 50%;
   width: min(26rem, 84vw);
   display: flex;
@@ -364,7 +365,7 @@ body {
   background: #060a12f0;
   box-shadow: 0 0 30px #0009, inset 0 0 24px #ffffff08;
   opacity: 0;
-  transform: translate(-50%, -0.8rem);
+  transform: translate(-50%, 0.8rem);
   transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   pointer-events: none;
 }
@@ -400,7 +401,7 @@ body {
 
 @media (max-width: 380px) {
   #notice {
-    top: calc(var(--safe-top) + 4.6rem);
+    bottom: calc(var(--safe-bottom) + 5.4rem);
     padding: 0.55rem 0.7rem;
   }
 

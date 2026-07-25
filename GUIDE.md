@@ -20,15 +20,20 @@ A `5` at depth −4 is worth 25 points. A `9` on the surface is worth 9.
 
 | | Keyboard & mouse | Touch | Gamepad |
 |---|---|---|---|
-| **Steer** | Move the mouse, or `W` `A` `S` `D` | Drag anywhere | Left stick |
-| **Bounce** | `Space` or click | Tap | Any face button |
+| **Steer** | Move the mouse, or `W` `A` `S` `D` | Hold and drag anywhere | Left stick |
+| **Bounce** | `Space` or click | **Release** | Any face button |
 | **Pause** | `Esc` or `P` | Pause button | — |
 
 The screen *is* the floor. Point at the tile you want and you will lean toward
 it.
 
-On touch, your first finger steers and any finger tapping bounces — so you can
-hold a thumb down to steer and tap with the other hand to time your bounces.
+**On touch the whole thing is one gesture: press to start aiming, drag to aim,
+release on the beat.** A thumb that is holding and dragging to steer cannot also
+tap to time a bounce — the two compete for the same finger — so releasing is
+what bounces. Tapping still works, because a tap is a press and a release.
+
+Your aim is held for a moment after you let go, so releasing to bounce does not
+throw away the tile you were lining up.
 
 ---
 
@@ -38,7 +43,7 @@ You bounce automatically, but a *timed* bounce is much better.
 
 A **ring closes in** on the tile you are about to land on. The square snaps and
 flares whenever you steer onto a different tile, so you can always see what you
-have selected. Press as the ring meets the square:
+have selected. Press — or on touch, release — as the ring meets the square:
 
 - **Close enough** → a charged bounce. Higher, longer, more reach.
 - **Dead on** → **PERFECT**. Higher still, a dash in the direction you are
@@ -144,6 +149,10 @@ Descending also pays a flat bonus, scaled by your new multiplier.
 
 ## Options
 
+- **Tips** appear at the bottom of the screen the first time something is worth
+  explaining, and the game slows down while one is up so you can read it without
+  losing the bounce you were lining up. Each one is shown once and then never
+  again.
 - **Sound** can be toggled on the title screen.
 - The game runs in **portrait or landscape**; the camera adjusts.
 - If the leaderboard is unreachable, your scores are still saved on your device

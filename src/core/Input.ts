@@ -44,6 +44,17 @@ export class Input {
   private readonly element: HTMLElement;
   private readonly disposers: Array<() => void> = [];
 
+  /**
+   * Source of truth for input timestamps. The app points this at its *simulated*
+   * clock rather than the wall clock, so that when time dilates the bounce
+   * timing window dilates with it — otherwise slow motion would silently make
+   * PERFECT unreachable, since the window is measured in simulated seconds.
+   */
+  private clockSource: () => number = () => performance.now() / 1000;
+
+  private lastUpdate = -1;
+  private touchReleasedAt = -Infinity;
+
   /** Callbacks fired on any input at all — used to unlock WebAudio. */
   readonly onAnyInput = new Set<() => void>();
   /** Fired on pause requests (Esc / P). */
@@ -100,6 +111,10 @@ export class Input {
 
   private resize(): void {
     this.touchStickRadius = clamp(Math.min(window.innerWidth, window.innerHeight) * 0.22, 60, 160);
+  }
+
+  setClockSource(source: () => number): void {
+    this.clockSource = source;
   }
 
   /**
@@ -190,14 +205,15 @@ export class Input {
       this.touchDetected = true;
       this.lastScheme = 'touch';
       this.activeTouches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      // The first finger down owns steering; any finger down bounces. That
-      // gives one-thumb players a tap-to-bounce game and two-thumb players
-      // simultaneous steer-and-charge.
+      // The first finger down owns steering; later fingers just ride along.
       if (this.touchId === null) {
         this.touchId = e.pointerId;
         this.touchOriginX = e.clientX;
         this.touchOriginY = e.clientY;
       }
+      // Deliberately no bounce here — see onPointerUp. On touch the whole
+      // gesture is press-drag-release, so the press is "start aiming".
+      return;
     } else {
       this.pointerInside = true;
       this.pointerX = e.clientX / window.innerWidth;
@@ -209,6 +225,20 @@ export class Input {
 
   private onPointerUp(e: PointerEvent): void {
     if (e.pointerType === 'touch') {
+      /**
+       * Touch bounces on *release*.
+       *
+       * A thumb that is holding and dragging to steer cannot also produce a new
+       * touchstart to time the bounce with — the two gestures compete for the
+       * same finger, which made one-handed play unable to charge a bounce at
+       * all. Releasing completes the gesture: press to start aiming, drag to
+       * aim, release on the beat.
+       *
+       * Tapping still works, because a tap is a press followed by a release,
+       * and firing on both would double-register every tap.
+       */
+      if (this.enabled) this.pressBounce();
+      this.touchReleasedAt = performance.now() / 1000;
       this.activeTouches.delete(e.pointerId);
       if (this.touchId === e.pointerId) {
         this.touchId = null;
@@ -232,7 +262,7 @@ export class Input {
     // button-mashing from stumbling into perfect timing by brute force.
     if (this.bounceEdge) return;
     this.bounceEdge = true;
-    this.bounceEdgeTime = performance.now() / 1000;
+    this.bounceEdgeTime = this.clockSource();
   }
 
   // -- gamepad -------------------------------------------------------------
@@ -277,6 +307,10 @@ export class Input {
    * simulation steps.
    */
   update(): void {
+    const wall = performance.now() / 1000;
+    const dt = this.lastUpdate < 0 ? 0 : clamp(wall - this.lastUpdate, 0, 0.25);
+    this.lastUpdate = wall;
+
     if (!this.enabled) {
       this.steer.x = 0;
       this.steer.y = 0;
@@ -325,9 +359,13 @@ export class Input {
     }
 
     if (this.lastScheme === 'touch') {
-      // Finger lifted: coast rather than snapping to centre.
-      this.steer.x *= 0.85;
-      this.steer.y *= 0.85;
+      // Releasing is how you bounce, so the aim must survive the release —
+      // otherwise every bounce would throw away the steering right when late
+      // control authority is at its highest. Hold, then coast.
+      if (wall - this.touchReleasedAt < TOUCH_AIM_HOLD) return;
+      const decay = Math.exp(-TOUCH_COAST_RATE * dt);
+      this.steer.x *= decay;
+      this.steer.y *= decay;
       return;
     }
 
@@ -339,8 +377,9 @@ export class Input {
       this.steer.x = applyDeadzoneCurve(dx);
       this.steer.y = applyDeadzoneCurve(dy);
     } else {
-      this.steer.x *= 0.85;
-      this.steer.y *= 0.85;
+      const decay = Math.exp(-TOUCH_COAST_RATE * dt);
+      this.steer.x *= decay;
+      this.steer.y *= decay;
     }
   }
 
@@ -364,6 +403,11 @@ export class Input {
     if (this.bounceEdge && now - this.bounceEdgeTime > maxAge) this.consumeBounce();
   }
 }
+
+/** Seconds the aim is held after a touch release, before it starts to decay. */
+const TOUCH_AIM_HOLD = 0.28;
+/** Decay rate once the hold expires, per second. */
+const TOUCH_COAST_RATE = 6;
 
 const STEER_KEYS = new Set([
   'KeyW',

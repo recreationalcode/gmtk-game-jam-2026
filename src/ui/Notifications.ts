@@ -1,3 +1,4 @@
+import { clamp01 } from '../core/MathUtil';
 import type { Notice } from '../game/Coach';
 import { renderGlyphToCanvas, renderMultiplierToCanvas } from '../render/GlyphAtlas';
 
@@ -57,7 +58,17 @@ export class Notifications {
   }
 
   private timer = 0;
+  private hold = 0;
   private clock = 0;
+
+  /**
+   * How far through the current toast we are, 0..1, or null when nothing is
+   * showing. The app turns this into time dilation so the notice is readable.
+   */
+  readingProgress(): number | null {
+    if (!this.showing || this.hold <= 0) return null;
+    return clamp01(1 - this.timer / this.hold);
+  }
 
   constructor(root: HTMLElement) {
     this.el = document.createElement('div');
@@ -95,6 +106,7 @@ export class Notifications {
       this.timer -= dt;
       if (this.timer <= 0) {
         this.showing = null;
+        this.hold = 0;
         this.timer = GAP_SECONDS;
         this.el.classList.remove('visible');
       }
@@ -117,7 +129,8 @@ export class Notifications {
 
   private present(notice: Notice): void {
     this.showing = notice;
-    this.timer = notice.body ? HOLD_SECONDS : HOLD_SECONDS * TERSE_SCALE;
+    this.hold = notice.body ? HOLD_SECONDS : HOLD_SECONDS * TERSE_SCALE;
+    this.timer = this.hold;
 
     const color = TONE_COLOR[notice.tone];
     this.el.style.setProperty('--notice-color', color);
@@ -146,6 +159,7 @@ export class Notifications {
   clear(): void {
     this.queue.length = 0;
     this.showing = null;
+    this.hold = 0;
     this.timer = 0;
     this.el.classList.remove('visible');
   }

@@ -73,12 +73,21 @@ usually further than a lazy bounce can reach.**
 
 | | Desktop | Mobile |
 |---|---|---|
-| Steer | Mouse position, or `WASD`/arrows | Drag anywhere (thumb-relative virtual stick) |
-| Bounce | `Space` / click / any key | Tap |
+| Steer | Mouse position, or `WASD`/arrows | Hold and drag (thumb-relative virtual stick) |
+| Bounce | `Space` / click / any key | **Release** |
 | Pause | `Esc` / `P` | Pause button |
 
 A **landing reticle** projects where you will touch down and highlights that
 tile. In a first-person-down camera this is non-negotiable for readability.
+
+**Touch bounces on release, not on press.** A thumb holding and dragging to
+steer cannot simultaneously produce a new touch to time the bounce with — the
+two gestures compete for the same finger, which left one-handed play unable to
+charge a bounce at all. Releasing completes the gesture instead: press to start
+aiming, drag to aim, release on the beat. Tapping still works, since a tap is a
+press followed by a release, and firing on both would double-register it. The
+aim is held briefly after release so bouncing does not discard the tile you had
+lined up.
 
 Air control is deliberately limited (you steer, you don't fly), so charging the
 bounce stays the primary way to cover distance.
@@ -186,6 +195,15 @@ The rules that keep it from becoming an irritation:
   context.
 - **Silence during the endgame.** The last ten seconds are already the loudest
   part of the game.
+
+**Time dilates while a notice is up.** A tip that appears mid-arc is unreadable
+at full speed — you are about to land on something. The simulation eases down to
+0.35×, holds, and eases back up over the second half of the toast's life, so
+play has resumed before the text leaves. The match clock slows with it: keeping
+it at real time would mean an unrequested tip costs several seconds of a
+sixty-second run. Input timestamps are taken against the *simulated* clock, so
+the bounce window stays exactly as wide in simulated seconds — otherwise slow
+motion would silently make PERFECT unreachable.
 
 The rules live in `src/game/Coach.ts` with no DOM dependency; the toast lives in
 `src/ui/Notifications.ts`. Notices carry the real tile artwork, drawn through

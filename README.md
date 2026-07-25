@@ -38,6 +38,7 @@ npm run package      # build + verified itch.io zip in build/
 | `npm run transitions` | Regression: every floor stays renderable across descend/ascend |
 | `npm run leaderboard` | Regression: board reachable before playing, and Back/Escape routing |
 | `npm run coach` | Regression: tips fire once, carry tile art, persist across runs |
+| `npm run touch` | Regression: press aims, drag steers, release bounces |
 | `npm run diag` | Screenshot the procedural glyphs, dump floor balance per depth |
 
 `npm run smoke` needs `npm run preview` running in another shell; `npm run

@@ -422,12 +422,15 @@ export class AudioEngine {
    * @param depth current floor depth — unlocks layers
    * @param intensity 0..1 endgame pressure — raises tempo and opens the filter
    */
-  setMusicState(depth: number, intensity: number): void {
+  setMusicState(depth: number, intensity: number, timeScale = 1): void {
     this.depth = depth;
     this.intensity = clamp01(intensity);
     if (this.musicFilter && this.ctx) {
-      const target = lerp(1400, 5200, this.intensity) + Math.min(depth, 6) * 180;
-      this.musicFilter.frequency.setTargetAtTime(target, this.ctx.currentTime, 0.3);
+      const open = lerp(1400, 5200, this.intensity) + Math.min(depth, 6) * 180;
+      // Dipping the filter as time dilates is the classic slow-motion cue, and
+      // it costs nothing here because the filter already exists for the endgame.
+      const target = open * lerp(0.35, 1, clamp01(timeScale));
+      this.musicFilter.frequency.setTargetAtTime(target, this.ctx.currentTime, 0.25);
     }
   }
 

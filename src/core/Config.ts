@@ -397,6 +397,33 @@ export const RETICLE = {
   lockPulseDecay: 5.5,
 } as const;
 
+/**
+ * Time dilation while a tip is on screen.
+ *
+ * A notice that appears mid-arc is unreadable at full speed — you are about to
+ * land on something. Slowing the simulation gives the player the arc back.
+ *
+ * The clock slows with everything else. Keeping it at real time would mean a
+ * tip you never asked for costs you several seconds of a sixty-second run,
+ * which is a worse trade than the leaderboard impurity of giving them back:
+ * tips fire at most once per lifetime, so a returning player gets no dilation
+ * at all and a first-timer's score is not competitive anyway.
+ */
+export const NOTICE_TIME = {
+  /** Slowest the simulation runs while a notice is being read. */
+  slowScale: 0.35,
+  /**
+   * Fraction of the toast's life spent easing *into* slow motion. Stepping the
+   * target straight to `slowScale` leaves the damping to absorb the whole jump,
+   * which is visibly abrupt on a device that is not hitting 60fps.
+   */
+  entryFraction: 0.12,
+  /** Fraction of the toast's life held at full slow before easing back up. */
+  holdFraction: 0.45,
+  /** How fast the scale chases its target, per second. */
+  smoothing: 4.5,
+} as const;
+
 export const FEEL = {
   /** Seconds of frozen time on a normal landing / a perfect one / a descend. */
   hitstopNormal: 0.0,

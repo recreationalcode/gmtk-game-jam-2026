@@ -72,6 +72,9 @@ export class Coach {
   /** Ids already emitted during this run, so a run can never repeat itself. */
   private readonly firedThisRun = new Set<string>();
 
+  /** Set by the app from the detected input scheme, so tips name real actions. */
+  touchMode = false;
+
   private landings = 0;
   private chargedBounces = 0;
   private timedPresses = 0;
@@ -222,7 +225,9 @@ export class Coach {
       this.push({
         id: 'tip:charge',
         title: 'Try timing your bounce',
-        body: 'Click or press Space just before you land. A timed bounce goes higher and reaches further.',
+        body: this.touchMode
+          ? 'Hold and drag to aim, then release just before you land. A timed bounce goes higher and reaches further.'
+          : 'Click or press Space just before you land. A timed bounce goes higher and reaches further.',
         tone: 'info',
         priority: 90,
       });
@@ -232,7 +237,9 @@ export class Coach {
       this.push({
         id: 'tip:perfect',
         title: 'Aim for PERFECT',
-        body: 'Press at the moment the closing ring meets the square. Perfect bounces build a combo multiplier.',
+        body: this.touchMode
+          ? 'Release at the moment the closing ring meets the square. Perfect bounces build a combo multiplier.'
+          : 'Press at the moment the closing ring meets the square. Perfect bounces build a combo multiplier.',
         tone: 'info',
         priority: 85,
       });
