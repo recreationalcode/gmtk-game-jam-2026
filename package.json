@@ -17,6 +17,8 @@
     "transitions": "node scripts/transitions.mjs",
     "coach": "node scripts/coach.mjs",
     "leaderboard": "node scripts/leaderboard-ui.mjs",
+    "proxy": "node scripts/proxy.mjs",
+    "proxy:e2e": "node scripts/proxy-e2e.mjs",
     "touch": "node scripts/touch.mjs",
     "tiles": "node scripts/tiles.mjs",
     "music": "node scripts/music.mjs",

@@ -335,15 +335,34 @@ in code — and raw three.js keeps the bundle small, which matters for mobile.
 localStorage leaderboard as fallback so the game is always playable and
 testable offline.
 
-⚠️ **Two things need your input here** (see `docs/LEADERBOARD.md`):
-1. This build container's network policy blocks `simpleboards.dev`, so the
-   integration is written to their documented request shape but **has not been
-   executed against the live service**. It needs one verification run from your
-   machine.
-2. A purely static itch.io game has no server, so the API key is in the client
-   bundle and is extractable. That is inherent to client-only leaderboards, not
-   a bug — but you should use a submit-only key if simpleboards offers one, and
-   expect the board to need occasional moderation.
+The API key lives in a **Vercel Edge function** (`api/scores.ts`), not in the
+client bundle:
+
+```
+itch.io (static, no key)  →  api/scores.ts (holds the key)  →  simpleboards.dev
+```
+
+The game ships one public URL and no secret. The proxy also validates the
+submission — bounds-checked integer score, sanitised name, whitelisted metadata
+— which stops arbitrary JSON reaching the third party under our key.
+
+What it deliberately does **not** claim to do is make scores trustworthy.
+Anyone can POST a number; CORS is a browser politeness mechanism, not an
+authorisation one. Trustworthy scores would mean the server replaying the run
+from an input log, which is far more than a jam needs. The validation rejects
+nonsense, not lies — expect to moderate.
+
+Direct mode (key inlined into the bundle, no server) still works and is the
+documented fallback, because a leaderboard that needs a deployment before the
+game works at all is a worse default for a jam.
+
+⚠️ **One thing still needs your input** (see `docs/LEADERBOARD.md`): this build
+container's network policy blocks `simpleboards.dev`, so the request shape is
+written to their documented form but **has not been executed against the live
+service**. It needs one verification run. The proxy tries both candidate read
+paths and reports the winner in an `x-upstream-path` header, so confirming it
+is a single curl — and correcting a wrong guess is a redeploy rather than a
+rebuilt and re-uploaded game.
 
 ## 13. Scope ladder
 

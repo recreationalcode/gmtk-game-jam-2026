@@ -22,7 +22,7 @@ npm run package      # build + verified itch.io zip in build/
 | [`DESIGN.md`](DESIGN.md) | Full design doc — mechanics, balance, and the reasoning behind them |
 | [`GUIDE.md`](GUIDE.md) | Player guide (also shipped inside the game and the zip) |
 | [`CREDITS.md`](CREDITS.md) | Asset provenance and licences |
-| [`docs/LEADERBOARD.md`](docs/LEADERBOARD.md) | Leaderboard setup, and what still needs verifying |
+| [`docs/LEADERBOARD.md`](docs/LEADERBOARD.md) | Leaderboard setup — the Vercel proxy, and what still needs verifying |
 
 ## Scripts
 
@@ -41,13 +41,15 @@ npm run package      # build + verified itch.io zip in build/
 | `npm run touch` | Regression: press aims, drag steers, release bounces |
 | `npm run tiles` | Regression: varied spawn values, out-of-phase decay, reset on leaving |
 | `npm run music` | Regression: title, match and post-run tracks all play, and differ |
+| `npm run proxy` | Regression: the leaderboard function, run under Node with a stubbed upstream |
 | `npm run aim` | Regression: the reticle goes where the cursor points, fast |
 | `npm run diag` | Screenshot the procedural glyphs, dump floor balance per depth |
 
 `npm run smoke` needs `npm run preview` running in another shell; `npm run
 fullrun` needs `npm run dev`, because it uses the dev-only `?matchSeconds=`
 override to finish a match in seconds (production strips it, so a shipped
-`?matchSeconds=600` can't be used to farm the leaderboard).
+`?matchSeconds=600` can't be used to farm the leaderboard). `npm run proxy`
+needs nothing — the function is Web-standard, so it runs under Node directly.
 
 These exist because the bugs that cost the most here were all invisible to the
 type checker and obvious in a screenshot: a texture atlas whose rows were
@@ -78,7 +80,16 @@ src/
   ui/          HUD · Screens · Notifications · Stats · style.css
   net/         Leaderboard
   App.ts       wires simulation → presentation
+
+api/
+  scores.ts    Vercel Edge function — holds the leaderboard API key
 ```
+
+`api/scores.ts` is deployed separately from the game and is not part of the
+itch.io zip. It exists so the simpleboards.dev key lives in a server
+environment variable rather than inside the client bundle, where anyone could
+read it. `npm run proxy` runs it under Node against a stubbed upstream, so it
+can be tested without deploying. See [`docs/LEADERBOARD.md`](docs/LEADERBOARD.md).
 
 Two properties are load-bearing:
 

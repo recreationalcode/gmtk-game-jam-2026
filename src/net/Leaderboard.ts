@@ -21,32 +21,50 @@ export interface BoardResult {
   error?: string;
 }
 
-interface SimpleBoardsConfig {
+/**
+ * Talk to our own proxy, which holds the API key. Nothing secret is bundled.
+ * This is the recommended setup — see `api/scores.ts` and docs/LEADERBOARD.md.
+ */
+interface ProxyConfig {
+  kind: 'proxy';
+  /** Absolute origin of the deployed function, no trailing slash. */
+  baseUrl: string;
+}
+
+/**
+ * Talk to simpleboards.dev directly with a key inlined into the bundle. Kept
+ * as the no-server fallback; anyone who looks can extract the key.
+ */
+interface DirectConfig {
+  kind: 'direct';
   apiKey: string;
   leaderboardId: string;
   baseUrl: string;
 }
 
+type RemoteConfig = ProxyConfig | DirectConfig;
+
 /**
  * Leaderboard access, remote-with-local-fallback.
  *
- * Two things to know about this file:
+ * Three things to know about this file:
  *
- * 1. The simpleboards.dev request shape here was reconstructed from their
- *    client libraries, not executed — the build environment blocks their
- *    domain, so it is written defensively (tolerant response parsing, two
- *    candidate endpoint shapes) and needs one verification run against the live
- *    service. See docs/LEADERBOARD.md.
+ * 1. There are two remote modes. **Proxy** mode talks to our own serverless
+ *    function, which holds the API key server-side — that is the one to use.
+ *    **Direct** mode inlines the key into the bundle, where anyone who looks
+ *    can extract it; it exists so the game still has an online board without a
+ *    server to deploy to. Proxy wins if both are configured.
  *
- * 2. The API key ships inside the client bundle and is therefore extractable.
- *    That is inherent to a static itch.io build with no server of its own, not
- *    an oversight — use a submit-scoped key and expect to moderate the board.
+ * 2. The simpleboards.dev request shape was reconstructed from their client
+ *    libraries, not executed — the build environment blocks their domain. In
+ *    proxy mode that uncertainty lives on the server, where fixing a wrong
+ *    guess is a redeploy rather than a rebuilt game. See docs/LEADERBOARD.md.
  *
- * Scores are always written locally as well, so the player's own history
- * survives an outage, a blocked domain, or an unconfigured key.
+ * 3. Scores are always written locally as well, so the player's own history
+ *    survives an outage, a blocked domain, or an unconfigured board.
  */
 export class Leaderboard {
-  private readonly config: SimpleBoardsConfig | null;
+  private readonly config: RemoteConfig | null;
   private readonly playerId: string;
 
   constructor() {
@@ -56,6 +74,11 @@ export class Leaderboard {
 
   get isRemoteConfigured(): boolean {
     return this.config !== null;
+  }
+
+  /** Which remote path is in use, for diagnostics and the headless tests. */
+  get remoteMode(): 'proxy' | 'direct' | 'local' {
+    return this.config?.kind ?? 'local';
   }
 
   getStoredName(): string {
@@ -90,28 +113,46 @@ export class Leaderboard {
     if (!this.config) return { ok: true, source: 'local' };
 
     try {
-      const res = await this.request(`${this.config.baseUrl}/api/entries`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': this.config.apiKey,
-        },
-        body: JSON.stringify({
-          leaderboardId: this.config.leaderboardId,
-          playerId: this.playerId,
-          playerDisplayName: clean,
-          score: Math.floor(summary.score),
-          metadata: JSON.stringify({
-            depth: summary.maxDepth,
-            descents: summary.descents,
-            perfects: summary.perfects,
-            bestCombo: summary.bestCombo,
-            tiles: summary.tilesScored,
-          }),
-        }),
-      });
+      const res =
+        this.config.kind === 'proxy'
+          ? await this.request(`${this.config.baseUrl}/api/scores`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                playerId: this.playerId,
+                name: clean,
+                score: Math.floor(summary.score),
+                metadata: {
+                  depth: summary.maxDepth,
+                  descents: summary.descents,
+                  perfects: summary.perfects,
+                  bestCombo: summary.bestCombo,
+                  tiles: summary.tilesScored,
+                },
+              }),
+            })
+          : await this.request(`${this.config.baseUrl}/api/entries`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': this.config.apiKey,
+              },
+              body: JSON.stringify({
+                leaderboardId: this.config.leaderboardId,
+                playerId: this.playerId,
+                playerDisplayName: clean,
+                score: Math.floor(summary.score),
+                metadata: JSON.stringify({
+                  depth: summary.maxDepth,
+                  descents: summary.descents,
+                  perfects: summary.perfects,
+                  bestCombo: summary.bestCombo,
+                  tiles: summary.tilesScored,
+                }),
+              }),
+            });
 
-      if (!res.ok) return { ok: false, error: `Submit failed (${res.status})` };
+      if (!res.ok) return { ok: false, error: await describeResponse(res) };
       return { ok: true, source: 'simpleboards' };
     } catch (err) {
       return { ok: false, error: describeError(err) };
@@ -120,33 +161,37 @@ export class Leaderboard {
 
   /** Fetch the top N. Falls back to the local board on any failure. */
   async top(limit = LEADERBOARD.topN): Promise<BoardResult> {
-    if (!this.config) {
-      return { entries: this.readLocal(limit), source: 'local' };
-    }
-
     const cfg = this.config;
-    // Two candidate shapes because the exact path could not be verified from
-    // this environment. Whichever answers first wins; both failing falls back.
-    const candidates = [
-      `${cfg.baseUrl}/api/entries?leaderboardId=${encodeURIComponent(cfg.leaderboardId)}&limit=${limit}`,
-      `${cfg.baseUrl}/api/leaderboards/${encodeURIComponent(cfg.leaderboardId)}/entries?limit=${limit}`,
-    ];
+    if (!cfg) return { entries: this.readLocal(limit), source: 'local' };
+
+    // Proxy mode gets one URL and one response shape, because the server
+    // already resolved both. Direct mode still has to guess.
+    const attempts =
+      cfg.kind === 'proxy'
+        ? [{ url: `${cfg.baseUrl}/api/scores?limit=${limit}`, headers: {} as HeadersInit }]
+        : [
+            {
+              url: `${cfg.baseUrl}/api/entries?leaderboardId=${encodeURIComponent(cfg.leaderboardId)}&limit=${limit}`,
+              headers: { 'x-api-key': cfg.apiKey } as HeadersInit,
+            },
+            {
+              url: `${cfg.baseUrl}/api/leaderboards/${encodeURIComponent(cfg.leaderboardId)}/entries?limit=${limit}`,
+              headers: { 'x-api-key': cfg.apiKey } as HeadersInit,
+            },
+          ];
 
     let lastError = 'Unknown error';
-    for (const url of candidates) {
+    for (const attempt of attempts) {
       try {
-        const res = await this.request(url, {
-          method: 'GET',
-          headers: { 'x-api-key': cfg.apiKey },
-        });
+        const res = await this.request(attempt.url, { method: 'GET', headers: attempt.headers });
         if (!res.ok) {
-          lastError = `HTTP ${res.status}`;
+          lastError = await describeResponse(res);
           continue;
         }
-        const parsed = parseEntries(await res.json(), this.getStoredName(), limit);
-        if (parsed.length > 0 || res.status === 200) {
-          return { entries: parsed, source: 'simpleboards' };
-        }
+        return {
+          entries: parseEntries(await res.json(), this.getStoredName(), limit),
+          source: 'simpleboards',
+        };
       } catch (err) {
         lastError = describeError(err);
       }
@@ -214,8 +259,14 @@ export class Leaderboard {
   }
 }
 
-function readConfig(): SimpleBoardsConfig | null {
+function readConfig(): RemoteConfig | null {
   const env = import.meta.env as Record<string, string | undefined>;
+
+  // Proxy first. If someone has deployed the function, that is what they meant
+  // to use, whatever else is lying around in their .env from an earlier setup.
+  const proxy = env.VITE_LEADERBOARD_PROXY?.trim().replace(/\/+$/, '');
+  if (proxy) return { kind: 'proxy', baseUrl: proxy };
+
   const apiKey = env.VITE_SIMPLEBOARDS_API_KEY?.trim();
   const leaderboardId = env.VITE_SIMPLEBOARDS_LEADERBOARD_ID?.trim();
   if (!apiKey || !leaderboardId) return null;
@@ -223,7 +274,7 @@ function readConfig(): SimpleBoardsConfig | null {
     /\/+$/,
     '',
   );
-  return { apiKey, leaderboardId, baseUrl };
+  return { kind: 'direct', apiKey, leaderboardId, baseUrl };
 }
 
 function ensurePlayerId(): string {
@@ -311,6 +362,24 @@ function firstNumber(obj: Record<string, unknown>, keys: string[]): number | nul
     if (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v))) return Number(v);
   }
   return null;
+}
+
+/**
+ * The proxy explains its own refusals in the body, and those explanations are
+ * the useful ones — "Score is outside the plausible range" beats "HTTP 422" on
+ * a score screen. Falls back to the status when there is nothing to read.
+ */
+async function describeResponse(res: Response): Promise<string> {
+  try {
+    const body: unknown = await res.clone().json();
+    if (typeof body === 'object' && body !== null) {
+      const msg = (body as { error?: unknown }).error;
+      if (typeof msg === 'string' && msg.length > 0) return msg;
+    }
+  } catch {
+    /* Not JSON, or already consumed. The status is still informative. */
+  }
+  return `HTTP ${res.status}`;
 }
 
 function describeError(err: unknown): string {

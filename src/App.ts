@@ -48,7 +48,8 @@ export class App {
   readonly game = new GameState();
   /** Public for the dev handle and the headless music test. */
   readonly audio = new AudioEngine();
-  private readonly leaderboard = new Leaderboard();
+  /** Public for the dev handle and the headless tests. */
+  readonly leaderboard = new Leaderboard();
 
   /** Public for the dev-only inspection handle installed by main.ts. */
   readonly input: Input;
