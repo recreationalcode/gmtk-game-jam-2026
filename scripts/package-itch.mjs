@@ -81,8 +81,45 @@ console.log(`
   files   : ${files}
   layout  : index.html verified at archive root
   paths   : verified relative
+  board   : ${describeBoard()}
 
   Upload to itch.io, tick "This file will be played in the browser",
   and set the embed size to at least 960x640 (the game is responsive
   and also handles fullscreen).
 `);
+
+/**
+ * Report which leaderboard the *archive* will actually use.
+ *
+ * Vite inlines VITE_* at build time, so a missing variable produces a zip that
+ * runs perfectly and quietly keeps scores in localStorage. That is impossible
+ * to spot by playing it and only shows up once it is live, so the packager says
+ * it out loud. Read from the bundle rather than from .env, because the bundle
+ * is what gets uploaded — a variable exported after the build was run would
+ * otherwise report a board the zip does not have.
+ */
+function describeBoard() {
+  const bundle = fs
+    .readdirSync(path.join(DIST, 'assets'))
+    .filter((f) => f.endsWith('.js'))
+    .map((f) => fs.readFileSync(path.join(DIST, 'assets', f), 'utf8'))
+    .join('');
+
+  // The *assignment* form. A bare mention is just the property access in
+  // readConfig(), which is present whether or not the value was ever set.
+  const baked = (name) => new RegExp(`${name}\\s*:\\s*["'\`]([^"'\`]+)`).exec(bundle)?.[1];
+
+  const proxy = baked('VITE_LEADERBOARD_PROXY');
+  if (proxy) return `proxy → ${proxy}`;
+  if (baked('VITE_SIMPLEBOARDS_API_KEY') && baked('VITE_SIMPLEBOARDS_LEADERBOARD_ID')) {
+    return 'direct — WARNING: the API key is inside this zip and is extractable';
+  }
+  return [
+    'LOCAL ONLY — no online board in this zip',
+    '',
+    '            The game will say "The online board is not set up." Set',
+    '            VITE_LEADERBOARD_PROXY (see .env.example) and re-run',
+    '            `npm run package` before uploading. It is inlined at build',
+    '            time, so setting it afterwards changes nothing.',
+  ].join('\n');
+}
