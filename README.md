@@ -13,6 +13,15 @@ npm run dev          # play at http://localhost:5173
 npm run package      # build + verified itch.io zip in build/
 ```
 
+The Vercel deployment builds the same upload, so the zip can be grabbed without
+a local toolchain:
+
+```
+https://gmtk-game-jam-2026.vercel.app/pogo-drop-itch.zip
+```
+
+See [Shipping to itch.io](#shipping-to-itchio).
+
 ---
 
 ## Documents
@@ -33,6 +42,7 @@ npm run package      # build + verified itch.io zip in build/
 | `npm run build` | Typecheck, then build to `dist/` |
 | `npm run preview` | Serve `dist/` |
 | `npm run package` | Build, verify the layout, and zip for itch.io |
+| `npm run build:vercel` | What Vercel runs: `build`, then the same zip into `dist/` |
 | `npm run smoke` | Headless Chromium: boot, play, screenshot, report errors |
 | `npm run fullrun` | Headless full match: endgame ramp → score screen → submit |
 | `npm run transitions` | Regression: every floor stays renderable across descend/ascend |
@@ -72,6 +82,44 @@ the ones measured on the device someone is actually holding.
 `debug.html` (dev server only, never built) previews the procedural glyphs and
 the full UI icon sheet — on both button backgrounds, since the icons inherit
 colour — and dumps floor composition per depth.
+
+---
+
+## Shipping to itch.io
+
+`dist/` is the itch payload verbatim — `vite build` already emits exactly what
+goes in the zip, because `base: './'` makes every asset reference relative and
+`index.html` lands at the root. Packaging adds no transformation; it copies
+`GUIDE.md` and `CREDITS.md` in, checks the two things that silently break an
+upload, and archives the result.
+
+There are two ways to get the archive, and they build the same thing:
+
+| | |
+|---|---|
+| `npm run package` | `build/pogo-drop-v<version>.zip` — versioned, so builds do not overwrite each other |
+| Vercel | `/pogo-drop-itch.zip` on every deployment — a fixed path, so a bookmark survives a version bump |
+
+The Vercel route exists because the build container is discarded when the
+deployment finishes: there is no build output to download after the fact, so the
+archive has to be placed inside `dist/` while the build is still running, where
+the CDN then serves it like any other static file. Preview deployments carry
+their own copy, so a branch's zip can be pulled from that branch's URL.
+
+Packaging runs *after* the typecheck and the build, and it fails the deployment
+if the layout is wrong. That is deliberate — a bundle that would 404 on itch is
+not a bundle worth deploying either.
+
+**The zip is only as configured as the build that made it.** Vite inlines
+`VITE_*` variables at build time, so `VITE_LEADERBOARD_PROXY` has to be set in
+the *Vercel project's* environment for the downloaded zip to reach the
+leaderboard; a zip built without it plays fine and keeps scores in
+`localStorage`. It must be an absolute origin, since itch runs the game on a
+different one. See [`docs/LEADERBOARD.md`](docs/LEADERBOARD.md).
+
+Uploading: attach the zip, tick **This file will be played in the browser**, and
+set the embed to at least 960x640. The game is responsive and handles
+fullscreen, so the embed size is a floor rather than a target.
 
 ---
 

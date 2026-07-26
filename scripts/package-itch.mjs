@@ -7,23 +7,41 @@
  * up one level down) and building with absolute asset paths. This script
  * verifies both before it writes anything, so a broken upload fails here rather
  * than in front of players.
+ *
+ * Two callers:
+ *
+ *   npm run package        →  build/pogo-drop-v<version>.zip, for uploading by hand
+ *   npm run build:vercel   →  --out dist/pogo-drop-itch.zip, so the deployment
+ *                             serves the upload at a fixed URL
+ *
+ * The names differ on purpose. A local archive wants the version in the
+ * filename so successive builds do not overwrite each other; the deployed one
+ * wants a stable path so a bookmark survives a version bump.
  */
-import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createZip } from './lib/zip.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'dist');
-const BUILD = path.join(ROOT, 'build');
 
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-const ZIP = path.join(BUILD, `pogo-drop-v${pkg.version}.zip`);
 
 function fail(message) {
   console.error(`\n  package-itch: ${message}\n`);
   process.exit(1);
 }
+
+function parseOut(argv) {
+  const flag = argv.indexOf('--out');
+  if (flag === -1) return path.join(ROOT, 'build', `pogo-drop-v${pkg.version}.zip`);
+  const value = argv[flag + 1];
+  if (!value) fail('--out needs a path.');
+  return path.resolve(ROOT, value);
+}
+
+const ZIP = parseOut(process.argv.slice(2));
 
 if (!fs.existsSync(DIST)) fail('dist/ does not exist. Run `npm run build` first.');
 
@@ -55,30 +73,47 @@ for (const doc of ['GUIDE.md', 'CREDITS.md']) {
   if (fs.existsSync(from)) fs.copyFileSync(from, path.join(DIST, doc));
 }
 
-fs.mkdirSync(BUILD, { recursive: true });
-fs.rmSync(ZIP, { force: true });
+/**
+ * Walk dist/ into archive entries.
+ *
+ * `.zip` is skipped so that writing the archive into dist/ — what the Vercel
+ * build does — cannot fold a previous archive into the next one. Collecting the
+ * list before writing already prevents an archive containing itself; this also
+ * covers re-running the packaging step without a fresh `vite build`.
+ */
+function collect(dir, prefix = '') {
+  const entries = [];
+  for (const item of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+    const name = prefix ? `${prefix}/${item.name}` : item.name;
+    if (item.name === '.DS_Store' || item.name === '__MACOSX') continue;
+    if (item.isDirectory()) {
+      entries.push(...collect(path.join(dir, item.name), name));
+    } else if (item.isFile() && !item.name.endsWith('.zip')) {
+      entries.push({ name, data: fs.readFileSync(path.join(dir, item.name)) });
+    }
+  }
+  return entries;
+}
 
-// `-r . ` from inside dist/ keeps index.html at the archive root; zipping the
-// directory itself would nest it one level down and itch would refuse to run it.
-execFileSync('zip', ['-r', '-q', '-9', ZIP, '.', '-x', '.DS_Store', '-x', '__MACOSX/*'], {
-  cwd: DIST,
-  stdio: 'inherit',
-});
+const entries = collect(DIST);
 
-const listing = execFileSync('unzip', ['-l', ZIP], { encoding: 'utf8' });
-if (!/\sindex\.html\s*$/m.test(listing)) {
+// The layout check the old `unzip -l` grep was doing, against the list we are
+// about to write: index.html at the archive root, not one level down.
+if (!entries.some((entry) => entry.name === 'index.html')) {
   fail('index.html is not at the root of the archive. itch.io will not run this.');
 }
 
-const bytes = fs.statSync(ZIP).size;
-const files = [...listing.matchAll(/^\s+\d+\s+\S+\s+\S+\s+(.+)$/gm)].length;
+const archive = createZip(entries);
+
+fs.mkdirSync(path.dirname(ZIP), { recursive: true });
+fs.writeFileSync(ZIP, archive);
 
 console.log(`
   Pogo Drop — itch.io package
   ---------------------------
   archive : ${path.relative(ROOT, ZIP)}
-  size    : ${(bytes / 1024 / 1024).toFixed(2)} MB
-  files   : ${files}
+  size    : ${(archive.length / 1024 / 1024).toFixed(2)} MB
+  files   : ${entries.length}
   layout  : index.html verified at archive root
   paths   : verified relative
 

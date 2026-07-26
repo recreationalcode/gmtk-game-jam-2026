@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "build:fast": "vite build",
+    "build:vercel": "npm run build && node scripts/package-itch.mjs --out dist/pogo-drop-itch.zip",
     "preview": "vite preview --host",
     "typecheck": "tsc --noEmit",
     "package": "npm run build && node scripts/package-itch.mjs",
