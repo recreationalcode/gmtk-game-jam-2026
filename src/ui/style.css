@@ -77,37 +77,64 @@ body {
   opacity: 1;
 }
 
+/*
+ * Everything in the corners is sized against the viewport's *smaller* side, so
+ * it grows on a desktop monitor instead of sitting there at phone size, and
+ * still fits a narrow screen. vmin rather than vw because a wide short window
+ * has just as little room as a narrow tall one.
+ *
+ * The notice uses the same scale for the same reason: it is the one thing that
+ * stops the game to be read, so on a big monitor it has to be big enough to be
+ * worth stopping for. The low end of each clamp is the phone size, which is why
+ * there is no separate small-screen override for any of them.
+ */
+:root {
+  --hud-inset: clamp(0.9rem, 2.4vmin, 2.4rem);
+  --hud-value: clamp(2rem, 4.4vmin, 3.6rem);
+  --hud-value-small: clamp(1.4rem, 3.1vmin, 2.5rem);
+  --hud-mult: clamp(2.6rem, 5.8vmin, 4.8rem);
+  --hud-label: clamp(0.62rem, 1.35vmin, 1.05rem);
+
+  --notice-width: min(clamp(25rem, 56vmin, 50rem), 92vw);
+  --notice-title: clamp(1.08rem, 2.5vmin, 2rem);
+  --notice-body: clamp(0.86rem, 1.8vmin, 1.4rem);
+  --notice-prompt: clamp(0.72rem, 1.4vmin, 1.05rem);
+  --notice-icon: clamp(48px, 8vmin, 110px);
+  --notice-pad: clamp(0.9rem, 1.9vmin, 1.9rem);
+  --notice-gap: clamp(0.8rem, 1.7vmin, 1.8rem);
+}
+
 .hud-corner {
   position: absolute;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.2rem;
 }
 
 .hud-tl {
-  top: calc(var(--safe-top) + 1rem);
-  left: calc(var(--safe-left) + 1rem);
+  top: calc(var(--safe-top) + var(--hud-inset));
+  left: calc(var(--safe-left) + var(--hud-inset));
 }
 
 .hud-tr {
-  top: calc(var(--safe-top) + 1rem);
-  right: calc(var(--safe-right) + 1rem);
+  top: calc(var(--safe-top) + var(--hud-inset));
+  right: calc(var(--safe-right) + var(--hud-inset));
   align-items: flex-end;
 }
 
 .hud-bl {
-  bottom: calc(var(--safe-bottom) + 1rem);
-  left: calc(var(--safe-left) + 1rem);
+  bottom: calc(var(--safe-bottom) + var(--hud-inset));
+  left: calc(var(--safe-left) + var(--hud-inset));
 }
 
 .hud-br {
-  bottom: calc(var(--safe-bottom) + 1rem);
-  right: calc(var(--safe-right) + 1rem);
+  bottom: calc(var(--safe-bottom) + var(--hud-inset));
+  right: calc(var(--safe-right) + var(--hud-inset));
   align-items: flex-end;
 }
 
 .hud-label {
-  font-size: 0.62rem;
+  font-size: var(--hud-label);
   letter-spacing: 0.22em;
   color: var(--ink-dim);
   text-transform: uppercase;
@@ -135,7 +162,7 @@ body {
 }
 
 .hud-value {
-  font-size: 2rem;
+  font-size: var(--hud-value);
   font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -143,7 +170,7 @@ body {
 }
 
 .hud-value.small {
-  font-size: 1.35rem;
+  font-size: var(--hud-value-small);
 }
 
 #hud-time {
@@ -174,7 +201,7 @@ body {
    worth more than any individual tile, so it is what the player should be
    reading. */
 .hud-value.mult {
-  font-size: 2.6rem;
+  font-size: var(--hud-mult);
   color: var(--accent);
   text-shadow: 0 0 24px var(--accent);
   transform-origin: 100% 100%;
@@ -182,33 +209,57 @@ body {
 
 @keyframes mult-pop {
   0% {
-    transform: scale(1);
+    transform: scale(1) rotate(0deg);
   }
-  25% {
-    transform: scale(1.75);
-    filter: brightness(1.8);
+  18% {
+    transform: scale(2.05) rotate(-4deg);
+    filter: brightness(2.2);
+  }
+  42% {
+    transform: scale(0.92) rotate(2deg);
+  }
+  68% {
+    transform: scale(1.12) rotate(-1deg);
   }
   100% {
-    transform: scale(1);
+    transform: scale(1) rotate(0deg);
   }
 }
 
+/*
+ * Losing a multiplier used to be a quarter-second tint. It is the worst thing
+ * that happens in a run, and the player is looking at the board rather than the
+ * corner when it does, so it needs to move enough to catch the eye sideways.
+ */
 @keyframes mult-drop {
   0% {
-    transform: scale(1.25);
+    transform: scale(1.4) translateX(0);
+    color: var(--hostile);
+    filter: brightness(1.6);
+  }
+  20% {
+    transform: scale(1.1) translateX(-0.12em);
+    color: var(--hostile);
+  }
+  40% {
+    transform: scale(1.02) translateX(0.1em);
+    color: var(--hostile);
+  }
+  60% {
+    transform: scale(0.94) translateX(-0.06em);
     color: var(--hostile);
   }
   100% {
-    transform: scale(1);
+    transform: scale(1) translateX(0);
   }
 }
 
 .hud-value.mult.pop {
-  animation: mult-pop 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: mult-pop 0.7s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .hud-value.mult.drop {
-  animation: mult-drop 0.4s ease-out;
+  animation: mult-drop 0.72s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 #hud-depth {
@@ -219,7 +270,7 @@ body {
 #hud-combo {
   position: absolute;
   left: 50%;
-  bottom: calc(var(--safe-bottom) + 3.2rem);
+  bottom: calc(var(--safe-bottom) + var(--hud-inset) + clamp(2.4rem, 5vmin, 4rem));
   transform: translateX(-50%);
   display: flex;
   align-items: center;
@@ -233,7 +284,7 @@ body {
 }
 
 #hud-combo .combo-text {
-  font-size: 1rem;
+  font-size: clamp(1rem, 2.4vmin, 1.9rem);
   letter-spacing: 0.18em;
   color: var(--accent);
   text-shadow: 0 0 16px var(--accent);
@@ -319,6 +370,164 @@ body {
   animation: mult-burst 1s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* The same slot, for the moment a red tile takes a multiplier back off you. */
+@keyframes mult-crash {
+  0% {
+    opacity: 0;
+    transform: scale(1.5) rotate(-6deg);
+  }
+  15% {
+    opacity: 0.9;
+    transform: scale(1.05) rotate(3deg);
+  }
+  30% {
+    transform: scale(1.12) rotate(-2deg);
+  }
+  55% {
+    opacity: 0.7;
+    transform: scale(0.95) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.7) translateY(14%);
+  }
+}
+
+#hud-multburst.crash {
+  color: #ffd8de;
+  text-shadow:
+    0 0 12px #05060a,
+    0 0 28px #05060aaa,
+    0 0 46px var(--hostile),
+    0 0 90px #ff3b5caa;
+  animation: mult-crash 0.9s cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+
+/* --------------------------------------------------------------------- */
+/* Perfect landings and powerup pickups                                    */
+/* --------------------------------------------------------------------- */
+
+/*
+ * Sits above centre so it never collides with the multiplier fanfare, which
+ * fires on the very same landing whenever a perfect takes you down a floor.
+ *
+ * Anchored with `bottom: 50%` plus a margin rather than a padded full-screen
+ * box: padding on a centred grid only moves the text by *half* of it, which is
+ * how the two ended up on top of each other. This way the margin is the gap.
+ * It has to clear half of the burst numeral, which is min(34vw, 34vh) tall.
+ */
+#hud-perfect {
+  --heat: 0;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 50%;
+  margin-bottom: clamp(5rem, 19vmin, 14rem);
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  opacity: 0;
+}
+
+#hud-perfect span {
+  font-size: calc(clamp(1.6rem, 5vmin, 3.4rem) * (1 + var(--heat) * 0.55));
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  color: #ffffff;
+  white-space: nowrap;
+  text-shadow:
+    0 0 10px #05060a,
+    0 0 26px var(--accent),
+    0 0 calc(40px + var(--heat) * 60px) var(--accent);
+}
+
+@keyframes perfect-fire {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) rotate(-5deg);
+  }
+  14% {
+    opacity: 1;
+    transform: scale(1.18) rotate(2deg);
+  }
+  30% {
+    transform: scale(0.97) rotate(-1deg);
+  }
+  46% {
+    opacity: 1;
+    transform: scale(1.04) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.3) translateY(-16%);
+  }
+}
+
+#hud-perfect.fire {
+  animation: perfect-fire 0.85s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Powerups land below centre, anchored the same way and for the same reason. */
+#hud-pickup {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  margin-top: clamp(5rem, 20vmin, 15rem);
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  opacity: 0;
+}
+
+#hud-pickup span {
+  font-size: clamp(1.5rem, 4.6vmin, 3rem);
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: #ffffff;
+  white-space: nowrap;
+  text-shadow:
+    0 0 10px #05060a,
+    0 0 26px var(--pickup),
+    0 0 54px var(--pickup);
+}
+
+#hud-pickup[data-tone='time'] {
+  --pickup: #ffcc44;
+}
+#hud-pickup[data-tone='boost'] {
+  --pickup: #c78bff;
+}
+#hud-pickup[data-tone='freeze'] {
+  --pickup: #7fdcff;
+}
+
+@keyframes pickup-fire {
+  0% {
+    opacity: 0;
+    transform: scale(0.55) translateY(24%);
+  }
+  16% {
+    opacity: 1;
+    transform: scale(1.16) translateY(0);
+  }
+  34% {
+    transform: scale(0.98);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.14) translateY(-18%);
+  }
+}
+
+#hud-pickup.fire {
+  animation: pickup-fire 0.95s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /* Floating score popups, positioned by projecting the world hit point */
 .popup {
   position: absolute;
@@ -384,11 +593,11 @@ body {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: min(34rem, 92vw);
+  width: var(--notice-width);
   display: flex;
   align-items: center;
-  gap: 1.1rem;
-  padding: 1.15rem 1.3rem 1.4rem;
+  gap: var(--notice-gap);
+  padding: var(--notice-pad) var(--notice-pad) calc(var(--notice-pad) + 0.25rem);
   border: 1px solid var(--notice-color);
   border-left-width: 4px;
   background: #060a12f7;
@@ -411,8 +620,8 @@ body {
 }
 
 .notice-icon {
-  width: 64px;
-  height: 64px;
+  width: var(--notice-icon);
+  height: var(--notice-icon);
   flex: 0 0 auto;
 }
 
@@ -421,7 +630,7 @@ body {
 }
 
 .notice-title {
-  font-size: 1.3rem;
+  font-size: var(--notice-title);
   font-weight: 700;
   letter-spacing: 0.04em;
   line-height: 1.15;
@@ -431,7 +640,7 @@ body {
 
 .notice-body {
   margin-top: 0.4rem;
-  font-size: 0.95rem;
+  font-size: var(--notice-body);
   line-height: 1.5;
   color: var(--ink);
 }
@@ -443,7 +652,7 @@ body {
 .notice-prompt {
   margin-top: 0.7rem;
   visibility: hidden;
-  font-size: 0.78rem;
+  font-size: var(--notice-prompt);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-dim);
@@ -466,7 +675,7 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  height: 5px;
+  height: clamp(5px, 0.7vmin, 10px);
   background: #ffffff1a;
 }
 
@@ -476,30 +685,6 @@ body {
   width: 100%;
   background: var(--notice-color);
   box-shadow: 0 0 12px var(--notice-color);
-}
-
-@media (max-width: 480px) {
-  #notice {
-    gap: 0.8rem;
-    padding: 0.9rem 1rem 1.2rem;
-  }
-
-  .notice-icon {
-    width: 48px;
-    height: 48px;
-  }
-
-  .notice-title {
-    font-size: 1.08rem;
-  }
-
-  .notice-body {
-    font-size: 0.86rem;
-  }
-
-  .notice-prompt {
-    font-size: 0.72rem;
-  }
 }
 
 /* Touch steering indicator */
@@ -729,6 +914,14 @@ input[type='text']:focus {
 .legend b {
   color: var(--accent);
   font-weight: 700;
+}
+
+/* The tile's name sits on its own line rather than being joined to the
+   description by a dash, which reads as filler at this width. */
+.legend .legend-name {
+  display: block;
+  letter-spacing: 0.14em;
+  margin-bottom: 0.15rem;
 }
 
 .keys {

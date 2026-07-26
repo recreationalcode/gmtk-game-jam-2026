@@ -553,19 +553,33 @@ export class App {
         break;
       case 'gainTime':
         this.audio.gainTime();
-        this.popupAt(`+${e.amount}s`, e.x, e.z, 'big');
-        this.ring(e.x, e.z, 3.2, 0.5, hsl(PALETTE.timeHue, 0.9, 0.62).clone());
-        this.flash = Math.max(this.flash, 0.09);
+        this.celebratePickup(
+          `+${e.amount} SECONDS`,
+          'time',
+          e.x,
+          e.z,
+          hsl(PALETTE.timeHue, 0.9, 0.62).clone(),
+        );
         break;
       case 'boost':
         this.audio.boost();
-        this.popupAt(`×${e.multiplier}`, e.x, e.z, 'big');
-        this.ring(e.x, e.z, 3.0, 0.45, hsl(PALETTE.boostHue, 0.85, 0.66).clone());
+        this.celebratePickup(
+          `MULTIPLIER ×${e.multiplier}`,
+          'boost',
+          e.x,
+          e.z,
+          hsl(PALETTE.boostHue, 0.85, 0.66).clone(),
+        );
         break;
       case 'freeze':
         this.audio.freeze();
-        this.popupAt('FREEZE', e.x, e.z, 'big');
-        this.ring(e.x, e.z, 4.5, 0.8, hsl(PALETTE.freezeHue, 0.75, 0.7).clone(), 0.05);
+        this.celebratePickup(
+          'EVERYTHING FROZE',
+          'freeze',
+          e.x,
+          e.z,
+          hsl(PALETTE.freezeHue, 0.75, 0.7).clone(),
+        );
         break;
       case 'secondTick':
         this.onSecondTick(e.secondsLeft);
@@ -597,13 +611,34 @@ export class App {
     this.particles.burst(e.x, floor.y, e.z, count, 3 + strength * 5, color, 0.55, 2.4);
 
     if (e.quality === 'perfect') {
-      this.audio.perfect(this.game.player.perfectStreak);
+      const streak = this.game.player.perfectStreak;
+      // Escalates with the streak instead of repeating. A perfect is the only
+      // thing in the game earned purely by timing, and the fifth one in a row
+      // should not look exactly like the first.
+      const heat = clamp01((streak - 1) / 7);
+
+      this.audio.perfect(streak);
       this.perfectFlash = 1;
-      this.flash = Math.max(this.flash, 0.05);
-      this.ring(e.x, e.z, floor.tileSize * 4.2, 0.55, this.accent, 0.045);
-      if (this.game.player.perfectStreak >= 2) {
-        this.popupAt(`PERFECT ×${this.game.player.perfectStreak}`, e.x, e.z);
-      }
+      this.flash = Math.max(this.flash, 0.07 + heat * 0.08);
+      this.rig.punch(0.5 + heat * 0.7);
+      this.game.addShake(0.06 + heat * 0.1);
+      this.hud.celebratePerfect(streak);
+
+      // Two rings travelling at different speeds read as a shockwave; one reads
+      // as a circle.
+      this.ring(e.x, e.z, floor.tileSize * (4.2 + heat * 3), 0.55, this.accent, 0.045);
+      this.ring(e.x, e.z, floor.tileSize * (2.1 + heat * 1.5), 0.3, WHITE, 0.075);
+      this.particles.burst(
+        e.x,
+        floor.y,
+        e.z,
+        Math.round(22 + heat * 34),
+        6 + heat * 5,
+        this.accent,
+        0.85,
+        3.0,
+        0.55,
+      );
     }
   }
 
@@ -651,7 +686,15 @@ export class App {
     const hostile = hsl(PALETTE.hostileHue, 0.82, 0.55).clone();
     this.popupAt(`×${e.multiplier}`, e.x, e.z, 'hostile');
     this.ring(e.x, e.z, 16, 0.7, hostile, 0.05);
-    this.particles.burst(e.x, this.game.floor.y, e.z, 40, 7, hostile, 1.0, 2.6, 0.9);
+    this.ring(e.x, e.z, 7, 0.4, hostile, 0.085);
+    this.particles.burst(e.x, this.game.floor.y, e.z, 55, 7.5, hostile, 1.0, 2.6, 0.9);
+
+    // Only when it actually cost something. Bouncing off an UP tile on the top
+    // floor takes nothing, and a fanfare for nothing teaches the wrong lesson.
+    if (e.from > 0) {
+      this.hud.celebrateMultiplier(e.multiplier, false);
+      this.flash = Math.max(this.flash, 0.11);
+    }
   }
 
   private onSecondTick(secondsLeft: number): void {
@@ -803,6 +846,32 @@ export class App {
     }
   }
 
+  /**
+   * The full fanfare for grabbing a powerup.
+   *
+   * These are rare, they never come back, and two of them are worth going a
+   * long way out of your way for. A small ring and a floating label undersold
+   * that badly next to the fireworks a descent already gets.
+   */
+  private celebratePickup(
+    label: string,
+    tone: 'time' | 'boost' | 'freeze',
+    x: number,
+    z: number,
+    color: THREE.Color,
+  ): void {
+    this.hud.celebratePickup(label, tone);
+    this.popupAt(label.split(' ')[0] ?? label, x, z, 'big');
+    this.flash = Math.max(this.flash, 0.13);
+    this.rig.punch(0.85);
+    this.game.addShake(0.14);
+
+    this.ring(x, z, 22, 0.85, color, 0.03);
+    this.ring(x, z, 11, 0.55, color, 0.055);
+    this.ring(x, z, 5, 0.32, WHITE, 0.09);
+    this.particles.burst(x, this.game.floor.y, z, 55, 8.5, color, 1.1, 2.9, 0.7);
+  }
+
   private ring(
     x: number,
     z: number,
@@ -834,8 +903,8 @@ export class App {
       this.submitted = true;
       this.screens.setSubmitState(
         'done',
-        result.source === 'local' ? 'Saved on this device.' : 'Score submitted.',
-        result.source === 'local' ? 'Saved' : 'Submitted',
+        result.source === 'local' ? 'Saved on this device.' : 'You are on the board.',
+        result.source === 'local' ? 'Saved' : 'Posted!',
       );
     } else {
       this.screens.setSubmitState('failed', result.error);

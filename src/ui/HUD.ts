@@ -25,6 +25,10 @@ export class HUD {
     comboText: HTMLElement;
     bigCount: HTMLElement;
     multBurst: HTMLElement;
+    perfect: HTMLElement;
+    perfectText: HTMLElement;
+    pickup: HTMLElement;
+    pickupText: HTMLElement;
     stick: HTMLElement;
     nub: HTMLElement;
   };
@@ -62,6 +66,8 @@ export class HUD {
       <div id="hud-combo"><span class="combo-text">PERFECT &times;1</span></div>
       <div id="hud-bigcount"></div>
       <div id="hud-multburst"></div>
+      <div id="hud-perfect"><span></span></div>
+      <div id="hud-pickup"><span></span></div>
       <div id="touch-stick"><div id="touch-nub"></div></div>
     `;
     root.appendChild(hud);
@@ -77,6 +83,10 @@ export class HUD {
       comboText: hud.querySelector<HTMLElement>('.combo-text')!,
       bigCount: q('hud-bigcount'),
       multBurst: q('hud-multburst'),
+      perfect: q('hud-perfect'),
+      perfectText: hud.querySelector<HTMLElement>('#hud-perfect span')!,
+      pickup: q('hud-pickup'),
+      pickupText: hud.querySelector<HTMLElement>('#hud-pickup span')!,
       stick: q('touch-stick'),
       nub: q('touch-nub'),
     };
@@ -153,12 +163,47 @@ export class HUD {
     this.el.time.classList.add('tick');
   }
 
-  /** Slam the new multiplier across the middle of the screen. */
-  celebrateMultiplier(multiplier: number): void {
-    this.el.multBurst.textContent = `×${multiplier}`;
-    this.el.multBurst.classList.remove('fire');
-    void this.el.multBurst.offsetWidth;
-    this.el.multBurst.classList.add('fire');
+  /**
+   * Slam the new multiplier across the middle of the screen.
+   *
+   * @param gained false when an UP tile took one away, which gets its own
+   * animation. Losing a multiplier is the worst thing that happens in a run and
+   * it used to be a quarter-second tint on a corner number, which is nothing:
+   * the player is looking at the board, not the corner, and is in the middle of
+   * being thrown a whole storey upward while it happens.
+   */
+  celebrateMultiplier(multiplier: number, gained = true): void {
+    const el = this.el.multBurst;
+    el.textContent = `×${multiplier}`;
+    el.classList.remove('fire', 'crash');
+    void el.offsetWidth;
+    el.classList.add(gained ? 'fire' : 'crash');
+  }
+
+  /**
+   * The flourish for a perfect landing, scaled by how long the streak is.
+   *
+   * A perfect is the one thing in the game the player earns purely through
+   * timing, and it deserves to be felt rather than merely counted in the corner.
+   * The streak drives size and glow through a custom property, so a long chain
+   * escalates instead of repeating.
+   */
+  celebratePerfect(streak: number): void {
+    const heat = Math.min(1, (streak - 1) / 7);
+    this.el.perfectText.textContent = streak >= 2 ? `PERFECT ×${streak}` : 'PERFECT';
+    this.el.perfect.style.setProperty('--heat', heat.toFixed(3));
+    this.el.perfect.classList.remove('fire');
+    void this.el.perfect.offsetWidth;
+    this.el.perfect.classList.add('fire');
+  }
+
+  /** Centre flourish for grabbing a powerup. */
+  celebratePickup(text: string, tone: 'time' | 'boost' | 'freeze'): void {
+    this.el.pickupText.textContent = text;
+    this.el.pickup.dataset.tone = tone;
+    this.el.pickup.classList.remove('fire');
+    void this.el.pickup.offsetWidth;
+    this.el.pickup.classList.add('fire');
   }
 
   /** Giant numeral behind the play field during the final seconds. */

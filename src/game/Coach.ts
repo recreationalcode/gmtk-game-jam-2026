@@ -177,8 +177,8 @@ export class Coach {
       case 'burnout':
         this.push({
           id: 'tile:burnout',
-          title: 'A tile burned out',
-          body: 'Numbers tick down. One that reaches zero turns into an UP tile — spend them while they are high.',
+          title: 'That one ran out',
+          body: "Every number is counting down. When one hits zero it turns red and starts bouncing you the wrong way. Grab them while they're big.",
           glyph: GLYPH_UP,
           tone: 'warn',
           priority: 50,
@@ -188,8 +188,8 @@ export class Coach {
       case 'gainTime':
         this.push({
           id: 'tile:time',
-          title: `+${TIME_TILE_BONUS} seconds`,
-          body: 'Clock tiles are the only way to extend a run.',
+          title: `+${TIME_TILE_BONUS} seconds!`,
+          body: 'Clock tiles are the only way to buy yourself more time. Never walk past one.',
           glyph: GLYPH_TIME,
           tone: 'good',
           priority: 70,
@@ -199,8 +199,8 @@ export class Coach {
       case 'boost':
         this.push({
           id: 'tile:boost',
-          title: 'Multiplier boost',
-          body: 'Boost tiles raise your multiplier without having to find the way down.',
+          title: 'Multiplier up!',
+          body: 'Boost tiles bump you up without making you find the way down. Free money.',
           glyph: GLYPH_BOOST,
           tone: 'good',
           priority: 70,
@@ -210,8 +210,8 @@ export class Coach {
       case 'freeze':
         this.push({
           id: 'tile:freeze',
-          title: `Countdowns frozen for ${FREEZE.duration}s`,
-          body: 'Nothing decays while this is running. Cash the big numbers now.',
+          title: 'Everything just froze!',
+          body: `Nothing counts down for ${FREEZE.duration} seconds. Go and clean up.`,
           glyph: GLYPH_FREEZE,
           tone: 'good',
           priority: 70,
@@ -221,8 +221,8 @@ export class Coach {
       case 'endgame':
         this.push({
           id: 'event:endgame',
-          title: `Final ${CLOCK.endgameSeconds} seconds`,
-          body: 'Tiles decay faster now. Take what is in front of you.',
+          title: `${CLOCK.endgameSeconds} seconds left!`,
+          body: "Numbers are draining twice as fast now. Forget the plan, grab whatever is closest.",
           tone: 'warn',
           priority: 75,
         });
@@ -242,10 +242,10 @@ export class Coach {
    */
   private descendBody(multiplier: number, depth: number): string | undefined {
     if (depth === 1) {
-      return `You are on a new floor — bigger, more tiles, smaller targets. Every tile down here is worth ${multiplier}× its number.`;
+      return `Bigger board, smaller tiles, and every number down here scores ×${multiplier}. This is how you win.`;
     }
     if (this.seen.count('event:multiplier') < 3) {
-      return `Every tile is now worth ${multiplier}× its number. Depth beats farming.`;
+      return `Numbers are worth ×${multiplier} now. Going deeper always beats hanging around.`;
     }
     return undefined;
   }
@@ -261,8 +261,8 @@ export class Coach {
       this.surfaceUps++;
       this.push({
         id: 'tile:up',
-        title: 'Red arrows throw you back',
-        body: 'Up a level, and a multiplier with it. On the surface there is nowhere to go, so this one only cost you the bounce.',
+        title: 'Red means up',
+        body: "Those throw you back a floor and take a multiplier with them. You're on the top floor so that one was free. Call it a warning.",
         glyph: GLYPH_UP,
         tone: 'warn',
         priority: 60,
@@ -275,8 +275,8 @@ export class Coach {
     // thrown a whole storey upward.
     const lost = this.push({
       id: 'event:multiplierLost',
-      title: `Multiplier ×${multiplier}`,
-      body: `An UP tile knocked you back a floor and took a multiplier with it. Every tile is worth ${multiplier}× now — get back down.`,
+      title: `Ouch, back to ×${multiplier}`,
+      body: `A red tile threw you up a floor and took a multiplier with it. Everything scores ×${multiplier} until you win it back. Green tile, go.`,
       multiplier,
       tone: 'warn',
       priority: 82,
@@ -287,8 +287,8 @@ export class Coach {
     if (lost) return;
     this.push({
       id: 'tip:reset',
-      title: 'The floor reset',
-      body: 'Leaving a floor restores its numbers — anything that decayed to zero is a number again.',
+      title: 'The floor refilled',
+      body: 'Leave a floor and its numbers come back fresh. Anything that had run out is worth points again.',
       tone: 'info',
       priority: 55,
     });
@@ -314,8 +314,8 @@ export class Coach {
     if (first) {
       this.push({
         id: 'intro:objective',
-        title: `Score as much as you can in ${Math.round(CLOCK.matchSeconds)} seconds`,
-        body: 'Bounce on tiles to collect their numbers.',
+        title: `Grab as many points as you can in ${Math.round(CLOCK.matchSeconds)} seconds`,
+        body: "Bounce on the numbers. That's the whole game.",
         // Short on purpose. It is the one notice that fires before the player
         // has done anything, so it is the one most in the way — and the way
         // down gets its own notice a few seconds later anyway.
@@ -336,10 +336,10 @@ export class Coach {
     if (stillNoTimedPress && (this.landings >= CHARGE_HINT_AFTER_LANDINGS || strandedBelow)) {
       this.push({
         id: 'tip:charge',
-        title: 'Try timing your bounce',
+        title: 'Try clicking as you land',
         body: this.touchMode
-          ? 'Hold and drag to aim, then release just before you land. A timed bounce goes higher and reaches further.'
-          : 'Click or press Space just before you land. A timed bounce goes higher and reaches further.',
+          ? 'Hold and drag to aim, then let go just as you touch down. Time it right and you bounce higher and reach further.'
+          : 'Click or hit Space just as you touch down. Time it right and you bounce higher and reach further.',
         tone: 'info',
         priority: 90,
       });
@@ -348,10 +348,10 @@ export class Coach {
     if (this.chargedBounces >= PERFECT_HINT_AFTER_CHARGED && this.perfects === 0) {
       this.push({
         id: 'tip:perfect',
-        title: 'Aim for PERFECT',
+        title: 'Now go for a PERFECT',
         body: this.touchMode
-          ? 'Release at the moment the closing ring meets the square. Perfect bounces build a combo multiplier.'
-          : 'Press at the moment the closing ring meets the square. Perfect bounces build a combo multiplier.',
+          ? 'Let go the instant the ring closes onto the tile. Perfects chain into a combo, and the combo is where the big scores hide.'
+          : 'Click the instant the ring closes onto the tile. Perfects chain into a combo, and the combo is where the big scores hide.',
         tone: 'info',
         priority: 85,
       });
@@ -362,8 +362,8 @@ export class Coach {
     if (!this.descended && stuckOnSurface) {
       this.push({
         id: 'tile:down',
-        title: `Land on the ×${game.multiplier + 1} tile`,
-        body: 'The green tile is the way down. Every floor has one, and dropping a floor multiplies everything you score after it.',
+        title: `Go find the ×${game.multiplier + 1} tile`,
+        body: "The green one is your way down. Every floor has exactly one, and dropping a floor makes everything below worth more.",
         multiplier: game.multiplier + 1,
         tone: 'info',
         priority: 95,
@@ -382,8 +382,8 @@ export class Coach {
       if (scoring <= Math.max(1, Math.floor(floor.tiles.length * STUCK_SCORING_FRACTION))) {
         this.push({
           id: 'tip:stuck',
-          title: 'This floor is spent',
-          body: 'Nothing left worth landing on. Take the way down — the next floor is fresh.',
+          title: 'Nothing left up here',
+          body: "You've picked this floor clean. Take the way down, the next one is untouched.",
           tone: 'info',
           priority: 65,
         });
@@ -470,24 +470,24 @@ const EMPTY: Notice[] = [];
 const DISCOVERIES: Partial<Record<TileKind, () => Notice>> = {
   [TileKind.Time]: () => ({
     id: 'tile:time',
-    title: `TIME tile — +${TIME_TILE_BONUS} seconds`,
-    body: 'There is one on this floor. The clock is the only thing you can actually run out of, so it is worth the detour.',
+    title: `Clock tile, +${TIME_TILE_BONUS} seconds`,
+    body: "There's one on this floor. Time is the only thing you truly run out of, so go out of your way for it.",
     glyph: GLYPH_TIME,
     tone: 'good',
     priority: 72,
   }),
   [TileKind.Boost]: () => ({
     id: 'tile:boost',
-    title: 'BOOST tile',
-    body: 'Multiplier +1 the moment you land on it, without having to find the way down.',
+    title: 'Boost tile',
+    body: 'Land on it and your multiplier jumps, no descending needed. Take every one you see.',
     glyph: GLYPH_BOOST,
     tone: 'good',
     priority: 72,
   }),
   [TileKind.Freeze]: () => ({
     id: 'tile:freeze',
-    title: 'FREEZE tile',
-    body: `Stops every countdown on the board for ${FREEZE.duration} seconds. Land on it, then farm hard.`,
+    title: 'Freeze tile',
+    body: `Stops every countdown on the board for ${FREEZE.duration} seconds. Land on it, then help yourself.`,
     glyph: GLYPH_FREEZE,
     tone: 'good',
     priority: 72,

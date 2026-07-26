@@ -180,7 +180,7 @@ export class Leaderboard {
             },
           ];
 
-    let lastError = 'Unknown error';
+    let lastError = 'something went wrong';
     for (const attempt of attempts) {
       try {
         const res = await this.request(attempt.url, { method: 'GET', headers: attempt.headers });
@@ -383,7 +383,7 @@ async function describeResponse(res: Response): Promise<string> {
 }
 
 function describeError(err: unknown): string {
-  if (err instanceof DOMException && err.name === 'AbortError') return 'Request timed out';
+  if (err instanceof DOMException && err.name === 'AbortError') return 'the board took too long';
   if (err instanceof Error) return err.message;
-  return 'Network error';
+  return 'no connection';
 }

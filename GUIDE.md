@@ -1,19 +1,19 @@
-# Pogo Drop — Player Guide
+# Pogo Drop, and how to be good at it
 
-You are strapped to a pogo stick, looking straight down. You cannot stop
-bouncing. You have **60 seconds** — and the clock does not start until you land,
-so use the opening drop to read the board.
+You're strapped to a pogo stick, looking straight down, and you can't stop
+bouncing. You get **60 seconds**. The clock doesn't start until you land, so
+take the opening drop to have a proper look at the board.
 
 ---
 
-## The one thing to understand
+## If you read nothing else, read this
 
-Every floor has **one way down**. Going down raises your multiplier, and the
-multiplier is worth far more than any single tile. So:
+Every floor has **exactly one way down**. Going down raises your multiplier, and
+the multiplier is worth far more than any single tile.
 
 > **Dive first. Farm second.**
 
-A `5` at depth −4 is worth 25 points. A `9` on the surface is worth 9.
+A `5` four floors down is worth 25 points. A `9` on the surface is worth 9.
 
 ---
 
@@ -23,41 +23,42 @@ A `5` at depth −4 is worth 25 points. A `9` on the surface is worth 9.
 |---|---|---|---|
 | **Steer** | Move the mouse, or `W` `A` `S` `D` | Hold and drag anywhere | Left stick |
 | **Bounce** | `Space` or click | **Release** | Any face button |
-| **Pause** | `Esc` or `P` | Pause button | — |
+| **Pause** | `Esc` or `P` | Pause button | n/a |
 
 The screen *is* the floor. **Point at the tile you want and the pogo goes
-there** — the cursor is a target, not a nudge. If a tile is too far to reach in
-the time you have left, you will get as close to it as physics allows.
+there.** The cursor is a target, not a nudge. Pick something too far away and
+you'll get as close as physics allows, which is usually further than you'd
+think.
 
-**On touch the whole thing is one gesture: press to start aiming, drag to aim,
-release on the beat.** A thumb that is holding and dragging to steer cannot also
-tap to time a bounce — the two compete for the same finger — so releasing is
-what bounces. Tapping still works, because a tap is a press and a release.
+**On a phone it's all one gesture: press to start aiming, drag to aim, let go on
+the beat.** A thumb that's busy steering can't also tap to time the bounce, so
+letting go is what bounces. A plain tap still works, since a tap is a press and
+a release.
 
-Your aim is held for a moment after you let go, so releasing to bounce does not
-throw away the tile you were lining up.
+Your aim sticks around for a moment after you let go, so bouncing never throws
+away the tile you just lined up.
 
 ---
 
 ## Timing the bounce
 
-You bounce automatically, but a *timed* bounce is much better.
+You bounce whether you do anything or not. But a *timed* bounce is much better.
 
-A **ring closes in** on the tile you are about to land on. The square snaps and
-flares whenever you steer onto a different tile, so you can always see what you
-have selected. Press — or on touch, release — as the ring meets the square:
+A **ring closes in** on the tile you're about to land on. The square snaps and
+flares whenever you steer onto a different one, so you can always see what
+you've picked. Click as the ring meets the square (on a phone, let go):
 
 - **Close enough** → a charged bounce. Higher, longer, more reach.
-- **Dead on** → **PERFECT**. Higher still, a dash in the direction you are
-  leaning, and it builds a combo multiplier worth up to ×2.2.
-- **Miss** → an ordinary bounce. No penalty, just less.
+- **Dead on** → **PERFECT**. Higher still, a dash in whichever direction you're
+  leaning, and it starts a combo worth up to ×2.2.
+- **Miss** → an ordinary bounce. No punishment, just less of a good thing.
 
-**Do not mash.** The first press is the one that counts, so spamming the button
-fills the input buffer far too early and grades out as an ordinary bounce. One
-deliberate press beats eight panicked ones.
+**Don't mash.** The first click is the one that counts, so spamming fills the
+buffer far too early and grades out as ordinary. One well-judged press beats
+eight panicked ones.
 
-Height is not just for show. A charged bounce buys you altitude, altitude widens
-your view of the floor, and a wider view is how you find the way down.
+Height isn't just for show. A charged bounce buys altitude, altitude widens your
+view of the floor, and a wider view is how you find the way down.
 
 ---
 
@@ -74,29 +75,30 @@ your view of the floor, and a wider view is how you find the way down.
 | **Freeze** (a snowflake, from depth −7) | Freezes every countdown on the board for 4 seconds. Farm hard. |
 
 **Powerups do not come back.** Land on one and it is gone for the rest of the
-run — it does not return when you leave the floor and come back, and neither do
-numbers you have already scored. Whatever you take off a floor, you have taken.
+run. It doesn't come back when you leave the floor and return, and neither do
+numbers you've already scored. Whatever you take off a floor, you've taken.
 
 The three powerups are introduced one at a time, each on its own floor: **time
 at −3, boost at −5, freeze at −7.** Those floors are stacked with that one
 powerup so you cannot miss it, and they are the one kind of floor that **does
-not refresh** when you leave — a board that generous would be a farm if you
-could reset it by bouncing up and back.
+not refill** when you leave. A board that generous would be a farm if you could
+reset it by bouncing up and back.
 
 ---
 
 ## It gets harder as you go
 
-**The deeper you are, the lower you bounce.** It comes down smoothly — you will
-not notice any single floor doing it — but by five or six floors down the arc is
-noticeably shorter than it was at the surface.
+**The deeper you are, the lower you bounce.** It creeps in smoothly, so no
+single floor feels like a wall, but by five or six floors down the arc is a good
+deal shorter than it was up top.
 
-That costs you altitude, and altitude is how you see the board: the lower the
-peak, the less of the floor is in frame when you are choosing where to go next.
+That costs you altitude, and altitude is how you see the board. The lower your
+peak, the less of the floor is in frame when you're picking where to go next.
 Deeper floors have more tiles and you get to see fewer of them at a time.
 
-A **PERFECT** bounce still lifts you the same proportion above that — it is just
-a shorter arc it is lifting. The deeper you get, the more the timing is worth.
+A **PERFECT** still lifts you the same proportion above all that. It's just a
+shorter arc it's lifting. Which is exactly why the timing is worth more the
+deeper you get.
 
 ---
 
@@ -112,17 +114,17 @@ arc before you commit to a landing:
 | **A minefield** | Two thirds up tiles. Gets likelier the deeper you go. |
 | **A payday** | Rare. A third of the board is time and boost tiles. |
 
-**The first floor has no up tiles at all** — every tile on it either scores or
-takes you down. Hazards ease in over the next two floors. The same kind of
-floor never comes round twice in a row.
+**The first floor has no up tiles at all.** Every tile on it either scores or
+takes you down, so take a moment there. Red tiles ease in over the next two
+floors, and the same kind of floor never comes round twice in a row.
 
 ---
 
 ## Tips
 
 The game explains itself as you go. When a tip appears the world slows almost
-to a stop so you can read it without losing the bounce — **click or tap to
-carry on** the moment you are done, or let the bar under it run out.
+to a stop so you can read it without losing the bounce. **Click or tap to carry
+on** the moment you're done, or let the little bar underneath run out.
 
 ---
 
@@ -131,11 +133,11 @@ carry on** the moment you are done, or let the bar under it run out.
 This is the part that catches people out.
 
 **Every number on the board is ticking down**, roughly once every two and a half
-seconds — about one tick per two bounces — whether you are looking at it or not.
-Each tile runs on its own slightly different clock, so they do not tick as one
-wave, and two tiles showing the same digit are not necessarily about to die
-together. A number that reaches zero does not just vanish: **it burns out into
-an UP tile**.
+seconds, which is about one tick per two bounces, whether you're watching or
+not. Each tile runs on its own slightly different clock, so they don't tick as
+one wave, and two tiles showing the same digit aren't necessarily about to go at
+the same moment. A number that reaches zero doesn't just vanish. **It turns into
+a red tile.**
 
 So a floor starts generous and *rots*. Tiles shift colour as they decay, from
 cool to hot, and pulse when they are nearly gone. Every UP tile you land on is
@@ -144,8 +146,8 @@ one you were too slow to cash.
 Three things stop that from spiralling:
 
 1. **A floor can only get so hostile.** There is a ceiling on how much of a
-   floor may be UP tiles at once — about 45% early on, rising with depth, and
-   *zero* on the first floor, where a burnout goes dead instead.
+   floor may be UP tiles at once. About 45% early on, rising with depth, and
+   *zero* on the first floor, where a burnt-out tile just goes dead instead.
    Past it, further burnouts go *dead* instead: worth nothing, but harmless. The
    board runs out of opportunities before it becomes a minefield.
 2. **Leaving a floor resets it.** Up *or* down: the moment you leave, every
@@ -157,10 +159,10 @@ Three things stop that from spiralling:
 
 What *doesn't* reset: **anything you took stays taken.** Numbers you scored and
 powerups you collected are gone for good. That is what stops a floor being
-farmed by bouncing down and straight back up — its harvestable total only ever
-falls. A floor you return to is a real place you left, just not a graveyard.
+farmed by bouncing down and straight back up. What's left on a floor only ever
+gets smaller. A floor you return to is somewhere you've been, not a graveyard.
 
-**Points go stale — take the nine now, not the four later.**
+**Points go stale. Take the nine now, not the four in ten seconds.**
 
 ---
 
@@ -203,17 +205,18 @@ Descending also pays a flat bonus, scaled by your new multiplier.
   be worth taking when you arrive; a 2 will not.
 - **Deep floors are bigger and their tiles are smaller.** Precision matters more
   the further you go.
-- There is **no way to die**. Only the clock can stop you — so take risks.
+- There is **no way to die**. Only the clock can stop you, so take risks.
 
 ---
 
 ## Options
 
-- **Tips** appear at the bottom of the screen the first time something is worth
-  explaining, and the game slows down while one is up so you can read it without
-  losing the bounce you were lining up. Each one is shown once and then never
-  again.
-- **Sound** can be toggled on the title screen.
-- The game runs in **portrait or landscape**; the camera adjusts.
-- If the leaderboard is unreachable, your scores are still saved on your device
-  and shown instead.
+- **Tips** pop up in the middle of the screen the first time something is worth
+  explaining, and the game slows almost to a stop while one is there so you can
+  read it without losing the bounce you were lining up. Click or tap to carry
+  on. Each tip is shown a couple of times and then never again.
+- **Sound** toggles on the title screen.
+- Plays in **portrait or landscape**. The camera sorts itself out.
+- If the leaderboard can't be reached, your scores are saved on your device and
+  shown instead, so nothing is lost.
+- Add **`?coach=reset`** to the URL if you want to see all the tips again.

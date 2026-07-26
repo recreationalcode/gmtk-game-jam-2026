@@ -176,7 +176,7 @@ export class Screens {
       view.rows.replaceChildren();
       const p = document.createElement('p');
       p.className = 'notice';
-      p.textContent = 'Loading scores…';
+      p.textContent = 'Fetching the scoreboard…';
       view.rows.appendChild(p);
       view.notice.textContent = '';
       view.notice.classList.remove('warn');
@@ -200,9 +200,9 @@ export class Screens {
 
         <h2>The idea</h2>
         <p>
-          You cannot stop bouncing. Every landing does something. One tile on each floor drops
-          you to the floor below, and going down is the only way to make points worth anything.
-          You have ${CLOCK.matchSeconds} seconds.
+          You can't stop bouncing, and every landing does something. Bounce on numbers to
+          collect them. One green tile per floor takes you down, and going down is what makes
+          everything worth more. You get ${CLOCK.matchSeconds} seconds. Go.
         </p>
 
         <h2>Controls</h2>
@@ -210,30 +210,41 @@ export class Screens {
 
         <h2>Timing your bounce</h2>
         <p>
-          A ring closes in on the tile you are about to hit. Press &mdash; or on touch,
-          <b>release</b> &mdash; exactly as it meets the square for a <b>PERFECT</b> bounce:
-          higher, further, and it builds a combo multiplier. Mashing does not work: the first press wins, so one deliberate press
-          beats eight panicked ones.
+          Watch the ring closing in on the tile you're about to hit. Click right as it lands on
+          the square (on a phone, <b>let go</b> instead) and you get a <b>PERFECT</b>: higher,
+          further, and it starts a combo that stacks up fast.
+        </p>
+        <p>
+          Mashing won't help you. The first click wins, so one well-judged press beats eight
+          panicked ones.
         </p>
 
         <h2>Tiles</h2>
         <div class="legend" data-role="legend"></div>
 
-        <h2>The countdown</h2>
+        <h2>Everything is counting down</h2>
         <p>
-          Every number ticks down, everywhere, all the time &mdash; each on its own slightly
-          different clock. A tile that reaches zero <b>burns out into an UP tile</b>. So points
-          go stale: take the nine now, not the four later.
+          Every number on the board is ticking away, each on its own clock. When one hits zero
+          it <b>turns into a red tile</b> and starts working against you. So points go stale.
+          Take the nine now, not the four in ten seconds.
         </p>
         <p>
-          Leaving a floor &mdash; up <i>or</i> down &mdash; <b>resets its numbers</b>. The floor
-          you come back to is fresh, except for whatever you took: scored numbers and
-          collected powerups are gone for good, so a floor is worth less every time you
-          return to it. The three powerup floors do not reset at all.
+          Good news: leave a floor and its numbers <b>come back fresh</b>. What doesn't come
+          back is anything you took. Numbers you scored and powerups you grabbed are gone for
+          good, so a floor is worth a little less every time you visit it. The three powerup
+          floors don't refill at all.
+        </p>
+
+        <h2>Floors have moods</h2>
+        <p>
+          Most are about half red tiles. Some are stuffed with big numbers and worth farming,
+          some are near enough a minefield, and every so often you'll drop into one loaded with
+          powerups. <b>The first floor has no red tiles at all</b>, so take a moment there.
         </p>
         <p>
-          Every floor has a shape &mdash; usually about half up tiles, sometimes a rich one
-          worth farming, sometimes a minefield. <b>The first floor has no up tiles at all.</b>
+          The deeper you go, the lower you bounce. It creeps in gently, but by a few floors
+          down you're seeing less of the board each time you peak. That's when timing starts
+          to really pay.
         </p>
 
         <div class="button-row">
@@ -268,7 +279,7 @@ export class Screens {
         renderGlyphToCanvas(canvas, row.glyph, row.color);
       }
       const text = document.createElement('div');
-      text.innerHTML = `<b>${row.title}</b> &mdash; ${row.body}`;
+      text.innerHTML = `<b class="legend-name">${row.title}</b>${row.body}`;
       legend.append(canvas, text);
     }
 
@@ -361,10 +372,14 @@ export class Screens {
     const stats = el.querySelector<HTMLElement>('[data-role="stats"]')!;
     stats.replaceChildren();
     for (const [label, value, ico] of [
-      ['Deepest', summary.maxDepth === 0 ? 'Surface' : `−${summary.maxDepth}`, 'depth'],
-      ['Descents', String(summary.descents), 'layers'],
+      // "−1" is how the HUD writes depth mid-run, but on the results card,
+      // with no floor under it for context, it just reads as a bad number.
+      ['Got to', summary.maxDepth === 0 ? 'Surface' : `Floor ${summary.maxDepth}`, 'depth'],
+      ['Floors dropped', String(summary.descents), 'layers'],
       ['Perfects', String(summary.perfects), 'target'],
-      ['Best combo', `×${summary.bestCombo}`, 'bolt'],
+      // The HUD only calls it a combo from two in a row, so anything less has
+      // no number to show. "×0" just looks like a scoring bug.
+      ['Best combo', summary.bestCombo >= 2 ? `×${summary.bestCombo}` : 'None', 'bolt'],
     ] as ReadonlyArray<readonly [string, string, IconName]>) {
       const d = document.createElement('div');
       const s = document.createElement('span');
@@ -389,7 +404,7 @@ export class Screens {
     switch (state) {
       case 'sending':
         this.submitButton.disabled = true;
-        this.submitButton.textContent = 'Submitting…';
+        this.submitButton.textContent = 'Sending…';
         setIcon(this.submitButton, 'submit');
         break;
       case 'done':
@@ -399,7 +414,7 @@ export class Screens {
         break;
       case 'failed':
         this.submitButton.disabled = false;
-        this.submitButton.textContent = 'Retry submit';
+        this.submitButton.textContent = 'Try again';
         setIcon(this.submitButton, 'warning');
         break;
       default:
@@ -430,7 +445,7 @@ export class Screens {
     if (result.entries.length === 0) {
       const empty = document.createElement('p');
       empty.className = 'notice';
-      empty.textContent = 'No scores yet. Be the first.';
+      empty.textContent = 'Nobody has posted a score yet. Go on then.';
       view.rows.appendChild(empty);
     }
 
@@ -458,8 +473,8 @@ export class Screens {
 
     if (result.source === 'local') {
       view.notice.textContent = result.error
-        ? `Showing local scores — online board unreachable (${result.error}).`
-        : 'Showing scores saved on this device. Online board is not configured.';
+        ? `Can't reach the online board (${result.error}), so these are your scores from this device.`
+        : 'These are your scores from this device. The online board is not set up.';
       view.notice.prepend(iconEl('warning'));
       view.notice.classList.add('warn');
     } else {
@@ -482,8 +497,8 @@ export class Screens {
   private buildRotateHint(): void {
     const el = document.createElement('div');
     el.id = 'rotate-hint';
-    el.innerHTML = `<div>${icon('rotate', 'big')}<p>Rotate your device upright.</p>
-      <p class="notice">Pogo Drop wants a taller screen than this.</p></div>`;
+    el.innerHTML = `<div>${icon('rotate', 'big')}<p>Turn your phone upright</p>
+      <p class="notice">Pogo Drop needs a taller screen than this one.</p></div>`;
     this.root.appendChild(el);
     // Only nag on genuinely touch devices; a short desktop window is fine.
     if (window.matchMedia?.('(pointer: coarse)').matches) el.classList.add('enabled');
@@ -494,20 +509,20 @@ const CONTROL_ROWS: ReadonlyArray<{ icon: IconName; keys: string; what: string }
   {
     icon: 'mouse',
     keys: '<kbd>Move mouse</kbd>',
-    what: 'Steer — the screen is the floor, point where you want to go',
+    what: 'Point where you want to land. The screen is the floor.',
   },
   {
     icon: 'keyboard',
     keys: '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>',
-    what: 'Steer with the keyboard instead',
+    what: 'Or steer with the keyboard, if you prefer',
   },
-  { icon: 'click', keys: '<kbd>Space</kbd> / <kbd>Click</kbd>', what: 'Time your bounce' },
+  { icon: 'click', keys: '<kbd>Space</kbd> / <kbd>Click</kbd>', what: 'Time your bounce as you land' },
   {
     icon: 'touch',
     keys: '<kbd>Touch</kbd>',
-    what: 'Hold and drag to aim, then release to bounce',
+    what: 'Hold and drag to aim, let go to bounce',
   },
-  { icon: 'pause', keys: '<kbd>Esc</kbd> / <kbd>P</kbd>', what: 'Pause' },
+  { icon: 'pause', keys: '<kbd>Esc</kbd> / <kbd>P</kbd>', what: 'Take a breather' },
 ];
 
 const LEGEND_ROWS: ReadonlyArray<{
@@ -522,43 +537,43 @@ const LEGEND_ROWS: ReadonlyArray<{
     glyph: 7,
     color: '#38e8ff',
     title: 'NUMBER',
-    body: 'Scores its value times your multiplier. The number ticks down, so grab it while it is high.',
+    body: 'Worth its face value times your multiplier. It counts down while you dither, so go early.',
   },
   {
     glyph: GLYPH.DOWN,
     multiplier: 3,
     color: '#3dffa0',
     title: 'DOWN',
-    body: 'Shows the multiplier you get for taking it — <b>&times;2</b>, <b>&times;3</b> and so on. <b>Exactly one per floor.</b> Bounce off it and the whole floor falls away. This is how you win.',
+    body: 'Shows what your multiplier becomes: <b>&times;2</b>, <b>&times;3</b> and up. <b>One per floor.</b> Bounce off it and the whole floor drops away beneath you. This is how you win.',
   },
   {
     glyph: GLYPH.UP,
     color: '#ff3b5c',
     title: 'UP',
-    body: 'Throws you back to the floor above. Multiplier &minus;1 and lost time &mdash; but the floor up there has reset, so its numbers are full again.',
+    body: 'Bounces you back up a floor and knocks a multiplier off. Small mercy: the floor above has refilled while you were gone.',
   },
   {
     glyph: GLYPH.SPENT,
     color: '#5a6478',
     title: 'SPENT',
-    body: 'Already cashed, or burned out to nothing. Worth no points, still in your way.',
+    body: "Already collected, or it ran out of time. Worth nothing now, and still in your way.",
   },
   {
     glyph: GLYPH.TIME,
     color: '#ffcc44',
     title: 'TIME',
-    body: `Adds ${TIME_TILE_BONUS} seconds to the clock. Introduced on its own floor at depth &minus;3. Once taken, it is gone for the rest of the run.`,
+    body: `Buys you ${TIME_TILE_BONUS} more seconds. You'll meet these on floor &minus;3. Take one and it's gone for good.`,
   },
   {
     glyph: GLYPH.BOOST,
     color: '#c78bff',
     title: 'BOOST',
-    body: 'Multiplier +1 outright, without having to descend for it. Introduced at depth &minus;5, and gone once taken.',
+    body: "Multiplier +1 without having to find the way down. Turns up from floor &minus;5. Gone once taken.",
   },
   {
     glyph: GLYPH.FREEZE,
     color: '#7fdcff',
     title: 'FREEZE',
-    body: `Stops every countdown on the board for ${FREEZE.duration} seconds. Introduced at depth &minus;7, and gone once taken.`,
+    body: `Everything stops counting down for ${FREEZE.duration} seconds. From floor &minus;7. Gone once taken.`,
   },
 ];

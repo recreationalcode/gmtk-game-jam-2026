@@ -124,40 +124,83 @@ await page.click('#screen-title button[data-act="play"]');
 await page.waitForTimeout(1200);
 await page.evaluate(() => window.pogo.notifications.clear());
 
-/** Bounce once from rest and report the apex actually reached, in metres. */
+/**
+ * Bounce once from rest and report the apex actually reached, in metres, plus
+ * what kind of bounce it turned out to be.
+ *
+ * The rider is parked over a plain NUMBER tile rather than over the origin.
+ * Whatever the generator happened to put at (0, 0) is what gets landed on, and
+ * half of a deep floor is UP tiles — those launch to `ascendApex`, which is
+ * deliberately *not* depth-scaled, so the measurement comes back at roughly
+ * twice the real bounce height and the failure looks like a broken curve.
+ */
 const measureApex = () =>
   page.evaluate(async () => {
     const g = window.pogo.game;
-    g.player.x = 0;
-    g.player.z = 0;
+    const { TileKind } = await import('/src/core/Config.ts');
+    const target = g.floor.tiles.find((t) => t.kind === TileKind.Number) ?? g.floor.tiles[0];
+    g.player.x = g.floor.worldX(target.gx);
+    g.player.z = g.floor.worldZ(target.gy);
     g.player.vx = 0;
     g.player.vz = 0;
     g.player.y = g.floor.y + 0.05;
     g.player.vy = -1;
+
+    const startDepth = g.depth;
     let peak = -Infinity;
+    let quality = null;
+    let lastVy = g.player.vy;
     const started = performance.now();
     // Watch until it comes back down, so this is the real trajectory rather
     // than an assertion about the number that went into it.
     while (performance.now() - started < 6000) {
       await new Promise((r) => requestAnimationFrame(r));
+      if (quality === null && lastVy < 0 && g.player.vy > 0) quality = g.player.lastQuality;
+      lastVy = g.player.vy;
       const h = g.player.y - g.floor.y;
       if (h > peak) peak = h;
       else if (peak > 0.5 && h < peak - 0.4) break;
     }
-    return +peak.toFixed(2);
+    return { apex: +peak.toFixed(2), quality, movedFloor: g.depth !== startDepth };
   });
 
-results.measured = { surface: await measureApex() };
+/** Unwrap a measurement, failing loudly if it was not the bounce we asked for. */
+const apexOf = (m, where) => {
+  if (m.quality !== 'normal') {
+    failures.push(`the ${where} measurement got a '${m.quality}' bounce, not a plain one`);
+  }
+  if (m.movedFloor) failures.push(`the ${where} measurement changed floor mid-bounce`);
+  return m.apex;
+};
+
+results.measured = { surface: apexOf(await measureApex(), 'surface') };
 for (let i = 0; i < 8; i++) {
   await page.evaluate(() => {
     const g = window.pogo.game;
-    g.player.y = g.floor.y + 30;
+    // Park high *and rising*. Left to fall, the rider lands during the wait,
+    // and on a board that is half UP tiles it climbs straight back out of the
+    // depth this is trying to reach.
+    g.player.x = 0;
+    g.player.z = 0;
+    g.player.y = g.floor.y + 40;
+    g.player.vy = 6;
     g.descend(0, 0);
     window.pogo.notifications.clear();
   });
-  await page.waitForTimeout(700);
+  await page.waitForTimeout(500);
+  await page.evaluate(() => {
+    const g = window.pogo.game;
+    g.player.y = g.floor.y + 40;
+    g.player.vy = 6;
+  });
 }
-results.measured.depth8 = await measureApex();
+results.measured.depthReached = await page.evaluate(() => window.pogo.game.depth);
+if (results.measured.depthReached !== 8) {
+  failures.push(
+    `expected to be at depth 8 for the deep measurement, got ${results.measured.depthReached}`,
+  );
+}
+results.measured.depth8 = apexOf(await measureApex(), 'depth-8');
 results.measured.expectedSurface = +rows[0].base.toFixed(2);
 results.measured.expectedDepth8 = +rows[8].base.toFixed(2);
 

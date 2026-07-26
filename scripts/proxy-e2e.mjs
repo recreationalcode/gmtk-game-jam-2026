@@ -165,9 +165,11 @@ try {
   };
 
   check('the game should be in proxy mode', results.mode === 'proxy', results.mode);
+  // 'Posted!' is the *remote* success label. A fallback to local scores says
+  // 'Saved' instead, so matching the exact word keeps this discriminating.
   check(
-    'the submit button should confirm success',
-    /submitted/i.test(results.ui.submitLabel ?? ''),
+    'the submit button should confirm the score went to the board',
+    /posted/i.test(results.ui.submitLabel ?? ''),
     results.ui.submitLabel,
   );
   // The single most important assertion. Any contract mismatch shows up here as

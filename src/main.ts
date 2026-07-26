@@ -60,8 +60,8 @@ function boot(): void {
 
   if (!hasWebGL2()) {
     fail(
-      'This browser cannot run WebGL 2, which Pogo Drop needs to draw anything at all.',
-      'Recent Chrome, Firefox, Edge or Safari should work. On desktop, check that hardware acceleration is enabled.',
+      "This browser can't do WebGL 2, which Pogo Drop needs to draw anything at all.",
+      'A recent Chrome, Firefox, Edge or Safari should sort it. On a desktop, check hardware acceleration is switched on.',
     );
     return;
   }

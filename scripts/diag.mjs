@@ -2,8 +2,12 @@
 // composition per depth, so layout and balance can be checked without eyeballing
 // the running game.
 import { chromium } from 'playwright';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const OUT = process.env.OUT ?? '.';
+// Alongside the other scripts' screenshots, which is what .gitignore covers.
+// Defaulting to the working directory dropped atlas.png in the repo root.
+const OUT = process.env.SMOKE_OUT ?? path.dirname(fileURLToPath(import.meta.url));
 const URL = process.env.DEBUG_URL ?? 'http://127.0.0.1:5173/debug.html';
 const EXECUTABLE =
   process.env.SMOKE_CHROMIUM ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';

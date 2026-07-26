@@ -397,7 +397,7 @@ results.discovery = await (async () => {
   return { kinds, seen };
 })();
 
-for (const [kind, label] of [['time', 'TIME'], ['boost', 'BOOST'], ['freeze', 'FREEZE']]) {
+for (const [kind, label] of [['time', 'Clock tile'], ['boost', 'Boost tile'], ['freeze', 'Freeze tile']]) {
   if (!results.discovery.kinds[kind]) continue; // not on this floor; nothing to announce
   if (!results.discovery.seen.some((t) => t.includes(label))) {
     failures.push(`${label} tiles were on the board but never introduced themselves`);
@@ -481,7 +481,7 @@ const duplicates = results.shownFirstRun.filter((t, i) => results.shownFirstRun.
 if (duplicates.length > 0) failures.push(`repeated within a run: ${duplicates.join(', ')}`);
 
 // The objective must be the very first thing said, and must name the clock.
-if (results.opening[0] === undefined || !/Score as much as you can/i.test(results.opening[0])) {
+if (results.opening[0] === undefined || !/Grab as many points/i.test(results.opening[0])) {
   failures.push(`the objective should open the run, got: ${results.opening[0] ?? 'nothing'}`);
 }
 
@@ -527,7 +527,7 @@ if (results.hitstopWhileReadingMs === null) {
   );
 }
 
-if (!results.shownFirstRun.some((t) => /Land on the ×2 tile/.test(t))) {
+if (!results.shownFirstRun.some((t) => /Go find the ×2 tile/.test(t))) {
   failures.push('the way-down hint never appeared');
 }
 // Two surface UP tiles should have pulled it in well before the 10s fallback.
@@ -538,26 +538,26 @@ if (!results.wayDownFiredAt.fired) {
     `the way-down hint fired at ${results.wayDownFiredAt.simTime.toFixed(1)}s — that is the timeout, not the repeated-UP trigger`,
   );
 }
-if (!results.shownFirstRun.some((t) => /Red arrows throw you back/.test(t))) {
+if (!results.shownFirstRun.some((t) => /Red means up/.test(t))) {
   failures.push('taking an UP tile on the surface said nothing');
 }
 // Losing a multiplier for real is its own notice, and must not be confused
 // with the harmless surface case.
-if (!results.shownFirstRun.includes('Multiplier ×1')) {
+if (!results.shownFirstRun.some((t) => /back to ×1/i.test(t))) {
   failures.push('losing a multiplier to an UP tile was never called out');
 }
 // ...and the two must never both fire for *one bounce*. A later ascend that
 // does not re-fire the multiplier notice is entitled to offer the reset tip.
 {
-  const i = results.shownFirstRun.indexOf('Multiplier ×1');
-  if (i >= 0 && /floor reset/i.test(results.shownFirstRun[i + 1] ?? '')) {
+  const i = results.shownFirstRun.findIndex((t) => /back to ×1/i.test(t));
+  if (i >= 0 && /floor refilled/i.test(results.shownFirstRun[i + 1] ?? '')) {
     failures.push('the floor-reset tip stacked on top of the multiplier-loss notice');
   }
 }
 // The first descent has to explain the floor, not just the number.
 {
-  const body = results.bodies['Multiplier ×2'] ?? '';
-  if (!/new floor/i.test(body)) {
+  const body = Object.entries(results.bodies).find(([t]) => /^Multiplier ×2$/.test(t))?.[1] ?? '';
+  if (!/bigger board/i.test(body)) {
     failures.push(`the first descent should explain the new floor, said: "${body}"`);
   }
 }
@@ -574,7 +574,7 @@ if (!results.shownFirstRun.some((t) => t.includes('seconds'))) {
 // except for the handful with a deliberate multi-run budget, which are supposed
 // to come back. The objective is the clearest case: it is not a tip, it is what
 // the game is, and a player on their second attempt has still only seen it once.
-const REPEATS_BY_DESIGN = [/Score as much as you can/i];
+const REPEATS_BY_DESIGN = [/Grab as many points/i];
 const repeated = results.shownSecondRun.filter(
   (t) => results.shownFirstRun.includes(t) && !REPEATS_BY_DESIGN.some((re) => re.test(t)),
 );
@@ -582,7 +582,7 @@ if (repeated.length > 0) {
   failures.push(`already-taught notices returned in a new run: ${repeated.join(', ')}`);
 }
 // And the positive half of that: the budgeted ones must actually still fire.
-if (!results.shownSecondRun.some((t) => /Score as much as you can/i.test(t))) {
+if (!results.shownSecondRun.some((t) => /Grab as many points/i.test(t))) {
   failures.push('the objective did not repeat on the second run, but its budget allows it');
 }
 for (const [id, n] of Object.entries(results.countsAfterFirstRun)) {
