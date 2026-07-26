@@ -9,6 +9,9 @@ import {
 import type { Rand } from '../core/Rand';
 import { chebyshev, clamp } from '../core/MathUtil';
 import type { Tile } from './Tile';
+import { THEMES, hazardScaleForDepth, type FloorTheme, type ThemeMix } from './Themes';
+
+type UnlockedKind = keyof typeof SPECIAL_UNLOCK_DEPTH;
 
 /**
  * One floor of tiles.
@@ -20,6 +23,7 @@ import type { Tile } from './Tile';
  */
 export class Floor {
   readonly depth: number;
+  readonly theme: FloorTheme;
   readonly side: number;
   readonly extent: number;
   readonly pitch: number;
@@ -42,8 +46,15 @@ export class Floor {
    */
   private readonly valueBag: number[] = [];
 
-  constructor(depth: number, rand: Rand, entryGX: number, entryGY: number) {
+  constructor(
+    depth: number,
+    rand: Rand,
+    entryGX: number,
+    entryGY: number,
+    theme: FloorTheme = 'default',
+  ) {
     this.depth = depth;
+    this.theme = theme;
     this.side = Floor.sideForDepth(depth);
     this.extent = Floor.extentForSide(this.side);
     this.pitch = this.extent / this.side;
@@ -99,9 +110,14 @@ export class Floor {
 
   // -- generation ----------------------------------------------------------
 
+  /** The mix this floor was built from. */
+  get mix(): ThemeMix {
+    return THEMES[this.theme];
+  }
+
   private generate(rand: Rand, entryGX: number, entryGY: number): void {
     const count = this.side * this.side;
-    const specials = this.unlockedSpecials();
+    const specials = this.availableSpecials();
 
     for (let i = 0; i < count; i++) {
       const gx = i % this.side;
@@ -124,6 +140,7 @@ export class Floor {
     }
 
     this.placeDownTiles(rand, entryGX, entryGY);
+    this.guaranteeReveal(rand, entryGX, entryGY);
     this.guaranteeSomeScoring(rand, entryGX, entryGY);
   }
 
@@ -144,7 +161,18 @@ export class Floor {
    */
   private dealValue(rand: Rand): number {
     if (this.valueBag.length === 0) {
-      for (let v = this.minSpawnValue(); v <= TILE_VALUES.maxSpawn; v++) this.valueBag.push(v);
+      const min = this.minSpawnValue();
+      for (let v = min; v <= TILE_VALUES.maxSpawn; v++) this.valueBag.push(v);
+      // A "high numbers" floor stacks extra copies of the top of the range into
+      // the bag rather than raising its floor. Raising the floor would make the
+      // board richer *and* more uniform, and uniform is the failure mode this
+      // whole bag exists to avoid.
+      const bias = this.mix.valueBias;
+      for (let i = 0; i < bias; i++) {
+        for (let v = Math.max(min, TILE_VALUES.maxSpawn - 2); v <= TILE_VALUES.maxSpawn; v++) {
+          this.valueBag.push(v);
+        }
+      }
       rand.shuffle(this.valueBag);
     }
     return this.valueBag.pop()!;
@@ -163,26 +191,53 @@ export class Floor {
       tile.decayEvery * rand.range(Math.max(0.08, 1 - TILE_DECAY.phaseJitter), 1);
   }
 
-  private unlockedSpecials(): Array<{ kind: TileKind; weight: number }> {
+  /**
+   * Powerups this floor may spawn.
+   *
+   * A theme that names kinds gets exactly those, *ignoring* the depth unlocks —
+   * that is precisely what makes a reveal floor a reveal, and what lets the
+   * "high numbers" floor lean on freeze wherever it lands.
+   */
+  private availableSpecials(): Array<{ kind: TileKind; weight: number }> {
+    const named = this.mix.kinds;
+    const base = new Map<TileKind, number>([
+      [TileKind.Time, SPAWN_MIX.timeWeight],
+      [TileKind.Boost, SPAWN_MIX.boostWeight],
+      [TileKind.Freeze, SPAWN_MIX.freezeWeight],
+    ]);
+
+    if (named.length > 0) {
+      const usable = this.mix.ignoreUnlocks
+        ? named
+        : named.filter((k) => this.depth >= SPECIAL_UNLOCK_DEPTH[k as UnlockedKind]);
+      return usable.map((kind, i) => ({
+        kind,
+        weight: (base.get(kind) ?? 0.3) * (i === 0 ? 1 + this.mix.favour : 1),
+      }));
+    }
+
     const out: Array<{ kind: TileKind; weight: number }> = [];
-    if (this.depth >= SPECIAL_UNLOCK_DEPTH[TileKind.Time]) {
-      out.push({ kind: TileKind.Time, weight: SPAWN_MIX.timeWeight });
-    }
-    if (this.depth >= SPECIAL_UNLOCK_DEPTH[TileKind.Boost]) {
-      out.push({ kind: TileKind.Boost, weight: SPAWN_MIX.boostWeight });
-    }
-    if (this.depth >= SPECIAL_UNLOCK_DEPTH[TileKind.Freeze]) {
-      out.push({ kind: TileKind.Freeze, weight: SPAWN_MIX.freezeWeight });
+    for (const [kind, weight] of base) {
+      if (this.depth >= SPECIAL_UNLOCK_DEPTH[kind as UnlockedKind]) {
+        out.push({ kind, weight });
+      }
     }
     return out;
   }
 
+  /** Share of this floor that spawns as UP tiles, after the opening ramp. */
+  upShare(): number {
+    return this.mix.up * hazardScaleForDepth(this.depth);
+  }
+
   private rollKind(rand: Rand, specials: Array<{ kind: TileKind; weight: number }>): TileKind {
-    const upShare = SPAWN_MIX.up(this.depth);
-    const specialShare = specials.length > 0 ? SPAWN_MIX.specials : 0;
+    const up = this.upShare();
+    // With nothing unlocked the powerup share has nowhere to go, so it becomes
+    // numbers rather than silently shrinking the board's useful area.
+    const powerup = specials.length > 0 ? this.mix.powerup : 0;
     const roll = rand.next();
-    if (roll < upShare) return TileKind.Up;
-    if (roll < upShare + specialShare) {
+    if (roll < up) return TileKind.Up;
+    if (roll < up + powerup) {
       const pick = rand.weighted(specials.map((s) => s.weight));
       if (pick >= 0) return specials[pick]!.kind;
     }
@@ -191,6 +246,10 @@ export class Floor {
 
   /** Ceiling on UP tiles, rising with depth in step with the spawn share. */
   upCeiling(): number {
+    // A floor that spawns no hazards must not grow them either: on the first
+    // floor a burnout goes dead rather than hostile, so "nothing here can undo
+    // a landing" holds for the whole visit rather than just the first seconds.
+    if (this.upShare() <= 0) return 0;
     const fraction = Math.min(
       TILE_DECAY.maxUpFractionCap,
       TILE_DECAY.maxUpFraction + this.depth * TILE_DECAY.maxUpFractionPerDepth,
@@ -204,7 +263,7 @@ export class Floor {
    * least one real traversal.
    */
   private placeDownTiles(rand: Rand, entryGX: number, entryGY: number): void {
-    const wanted = SPAWN_MIX.downTiles(this.depth);
+    const wanted = SPAWN_MIX.downTiles;
     const candidates: number[] = [];
     const fallback: number[] = [];
 
@@ -245,11 +304,47 @@ export class Floor {
   }
 
   /**
+   * A reveal floor must actually contain the thing it reveals.
+   *
+   * The roll makes that overwhelmingly likely, not certain, and "the floor that
+   * introduces FREEZE has no freeze tiles on it" is the kind of one-in-ten-
+   * thousand that surfaces in front of an audience. Converts UP tiles rather
+   * than numbers, so topping up costs the player nothing.
+   */
+  private guaranteeReveal(rand: Rand, entryGX: number, entryGY: number): void {
+    const kind = this.mix.kinds[0];
+    if (this.mix.guarantee <= 0 || kind === undefined) return;
+
+    const wanted = Math.max(1, Math.round(this.tiles.length * this.mix.guarantee));
+    let have = 0;
+    for (const t of this.tiles) if (t.kind === kind) have++;
+    if (have >= wanted) return;
+
+    const swappable = this.tiles
+      .map((t, i) => (t.kind === TileKind.Up ? i : -1))
+      .filter((i) => i >= 0);
+    rand.shuffle(swappable);
+
+    for (const idx of swappable) {
+      if (have >= wanted) break;
+      const t = this.tiles[idx]!;
+      if (chebyshev(t.gx, t.gy, entryGX, entryGY) === 0) continue;
+      t.kind = kind;
+      t.value = 0;
+      have++;
+    }
+  }
+
+  /**
    * A floor that rolls almost all UP tiles is a miserable floor. Guarantee a
    * minimum number of scoring tiles so no seed produces a dead board.
    */
   private guaranteeSomeScoring(rand: Rand, entryGX: number, entryGY: number): void {
-    const target = Math.max(3, Math.floor(this.tiles.length * SPAWN_MIX.scoringFloor(this.depth)));
+    // Derived from the theme's own number share rather than a fixed fraction: a
+    // hazard floor is *meant* to be thin, and a flat floor would quietly undo
+    // every theme that leans hostile.
+    const numberShare = Math.max(0, 1 - this.upShare() - this.mix.powerup);
+    const target = Math.max(3, Math.floor(this.tiles.length * numberShare * SPAWN_MIX.scoringFloor));
     let scoring = this.tiles.reduce((n, t) => n + (t.kind === TileKind.Number ? 1 : 0), 0);
     if (scoring >= target) return;
 
@@ -324,9 +419,13 @@ export class Floor {
    *
    * The second is the countdown reset. Every number tile goes back to a fresh
    * value on a fresh clock, and tiles that burned out come back as numbers.
-   * What does *not* come back is anything you scored — those stay spent, so a
-   * floor's harvestable total only ever falls and there is no way to farm one
-   * by bouncing down and straight back up.
+   * What does *not* come back is anything you *took* — scored numbers and
+   * collected powerups alike stay spent, so a floor's harvestable total only
+   * ever falls and there is no way to farm one by bouncing down and back.
+   *
+   * Reveal floors opt out of the reset entirely (`resetsOnLeave`). They are
+   * deliberately stacked with one powerup, which is a fine reward for arriving
+   * and an exploit if returning refills it.
    *
    * Done on arrival rather than departure purely so the numbers do not visibly
    * change on a floor that is still on screen mid-dissolve. Nothing decays
@@ -338,7 +437,7 @@ export class Floor {
 
     for (const tile of this.tiles) {
       tile.alive = 0;
-      if (!TILE_DECAY.resetOnLeave) continue;
+      if (!TILE_DECAY.resetOnLeave || !this.mix.resetsOnLeave) continue;
 
       // Authored hazards keep the floor's shape; scored and used tiles stay
       // consumed. Everything else is either a live number or a burned one.

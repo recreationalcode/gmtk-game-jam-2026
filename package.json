@@ -21,6 +21,7 @@
     "proxy:e2e": "node scripts/proxy-e2e.mjs",
     "touch": "node scripts/touch.mjs",
     "tiles": "node scripts/tiles.mjs",
+    "themes": "node scripts/themes.mjs",
     "music": "node scripts/music.mjs",
     "aim": "node scripts/aim.mjs"
   },

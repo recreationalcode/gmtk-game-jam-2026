@@ -13,6 +13,7 @@ import { clamp } from '../core/MathUtil';
 import { Rand, randomSeed } from '../core/Rand';
 import { Floor } from './Floor';
 import { Player, ascendApex, type BounceQuality } from './Player';
+import { ThemeDirector } from './Themes';
 import type { Tile } from './Tile';
 
 export type Phase = 'ready' | 'playing' | 'over';
@@ -102,6 +103,7 @@ export class GameState {
   readonly events: GameEvent[] = [];
 
   private rand = new Rand(1);
+  private readonly themes = new ThemeDirector();
   private stats: RunSummary = blankSummary();
 
   // -- lifecycle -----------------------------------------------------------
@@ -154,6 +156,7 @@ export class GameState {
 
   start(seed = randomSeed()): void {
     this.rand = new Rand(seed);
+    this.themes.reset();
     this.floors.length = 0;
     this.depth = 0;
     this.score = 0;
@@ -173,7 +176,7 @@ export class GameState {
     this.stats.seed = seed;
 
     const centre = Math.floor(Floor.sideForDepth(0) / 2);
-    this.floors[0] = new Floor(0, this.rand, centre, centre);
+    this.floors[0] = new Floor(0, this.rand, centre, centre, this.themes.pick(0, this.rand));
     this.player.reset(this.floors[0]!.y);
     this.phase = 'playing';
   }
@@ -431,10 +434,14 @@ export class GameState {
       existing.restore(this.rand);
       return;
     }
-    const probe = new Floor(depth, this.rand, 0, 0);
+    // The theme is chosen once, before the floor exists, because it decides
+    // what the floor *is*. The probe only reads geometry, which is a pure
+    // function of depth, so it shares the theme rather than rolling a second.
+    const theme = this.themes.pick(depth, this.rand);
+    const probe = new Floor(depth, this.rand, 0, 0, theme);
     const gx = probe.gridX(entryX);
     const gy = probe.gridY(entryZ);
-    this.floors[depth] = new Floor(depth, this.rand, gx, gy);
+    this.floors[depth] = new Floor(depth, this.rand, gx, gy, theme);
   }
 
   // -- helpers -------------------------------------------------------------

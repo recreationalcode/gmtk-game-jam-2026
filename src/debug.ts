@@ -3,9 +3,9 @@
  */
 import { ATLAS_COLS, ATLAS_LAYERS, createAtlasPreview } from './render/GlyphAtlas';
 import { Floor } from './game/Floor';
+import { ThemeDirector } from './game/Themes';
 import { Rand } from './core/Rand';
 import { TileKind } from './core/Config';
-import { tileLabel } from './game/Tile';
 import { ICON_NAMES, icon } from './ui/Icons';
 
 // Icon sheet. These are drawn as computed geometry with no reference art, so
@@ -45,18 +45,31 @@ atlasHost.appendChild(note);
 // Floor composition per depth — the check that specials stay locked until their
 // unlock depth and that every floor has a way down.
 const out: string[] = [];
-const rand = new Rand(12345);
-for (const depth of [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14]) {
-  const floor = new Floor(depth, rand, 0, 0);
-  const counts = new Map<TileKind, number>();
-  for (const t of floor.tiles) counts.set(t.kind, (counts.get(t.kind) ?? 0) + 1);
-  const parts = [...counts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([k, n]) => `${tileLabel(k)}=${n}`)
-    .join('  ');
-  out.push(
-    `depth ${depth}  side=${floor.side}  extent=${floor.extent.toFixed(2)}  ` +
-      `tile=${floor.tileSize.toFixed(2)}\n           ${parts}`,
-  );
+// Three runs, so the theme sequence and its cooldowns are visible rather than
+// inferred from a single roll.
+for (const seed of [12345, 777, 20260726]) {
+  const rand = new Rand(seed);
+  const themes = new ThemeDirector();
+  out.push(`--- seed ${seed} ---`);
+  for (let depth = 0; depth <= 14; depth++) {
+    const theme = themes.pick(depth, rand);
+    const floor = new Floor(depth, rand, 0, 0, theme);
+    const counts = new Map<TileKind, number>();
+    for (const t of floor.tiles) counts.set(t.kind, (counts.get(t.kind) ?? 0) + 1);
+    const n = floor.tiles.length;
+    const pct = (k: TileKind) => `${Math.round(((counts.get(k) ?? 0) / n) * 100)}%`;
+    const specials =
+      (counts.get(TileKind.Time) ?? 0) +
+      (counts.get(TileKind.Boost) ?? 0) +
+      (counts.get(TileKind.Freeze) ?? 0);
+    out.push(
+      `d${String(depth).padStart(2)} ${floor.mix.label.padEnd(13)} ` +
+        `n=${String(n).padStart(3)}  ` +
+        `num ${pct(TileKind.Number).padStart(4)}  up ${pct(TileKind.Up).padStart(4)}  ` +
+        `pow ${String(Math.round((specials / n) * 100)).padStart(3)}%  ` +
+        `down=${counts.get(TileKind.Down) ?? 0}  ` +
+        `[T${counts.get(TileKind.Time) ?? 0} B${counts.get(TileKind.Boost) ?? 0} F${counts.get(TileKind.Freeze) ?? 0}]`,
+    );
+  }
 }
 document.getElementById('floors')!.textContent = out.join('\n');

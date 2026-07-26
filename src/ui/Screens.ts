@@ -227,8 +227,13 @@ export class Screens {
         </p>
         <p>
           Leaving a floor &mdash; up <i>or</i> down &mdash; <b>resets its numbers</b>. The floor
-          you come back to is fresh, except for the tiles you already cashed in. Those stay
-          spent, so a floor is worth less every time you return to it.
+          you come back to is fresh, except for whatever you took: scored numbers and
+          collected powerups are gone for good, so a floor is worth less every time you
+          return to it. The three powerup floors do not reset at all.
+        </p>
+        <p>
+          Every floor has a shape &mdash; usually about half up tiles, sometimes a rich one
+          worth farming, sometimes a minefield. <b>The first floor has no up tiles at all.</b>
         </p>
 
         <div class="button-row">
@@ -524,7 +529,7 @@ const LEGEND_ROWS: ReadonlyArray<{
     multiplier: 3,
     color: '#3dffa0',
     title: 'DOWN',
-    body: 'Shows the multiplier you get for taking it — <b>&times;2</b>, <b>&times;3</b> and so on. Bounce off it and the whole floor falls away. This is how you win.',
+    body: 'Shows the multiplier you get for taking it — <b>&times;2</b>, <b>&times;3</b> and so on. <b>Exactly one per floor.</b> Bounce off it and the whole floor falls away. This is how you win.',
   },
   {
     glyph: GLYPH.UP,
@@ -542,18 +547,18 @@ const LEGEND_ROWS: ReadonlyArray<{
     glyph: GLYPH.TIME,
     color: '#ffcc44',
     title: 'TIME',
-    body: `Adds ${TIME_TILE_BONUS} seconds to the clock. Appears once you get deep enough.`,
+    body: `Adds ${TIME_TILE_BONUS} seconds to the clock. Introduced on its own floor at depth &minus;3. Once taken, it is gone for the rest of the run.`,
   },
   {
     glyph: GLYPH.BOOST,
     color: '#c78bff',
     title: 'BOOST',
-    body: 'Multiplier +1 outright, without having to descend for it.',
+    body: 'Multiplier +1 outright, without having to descend for it. Introduced at depth &minus;5, and gone once taken.',
   },
   {
     glyph: GLYPH.FREEZE,
     color: '#7fdcff',
     title: 'FREEZE',
-    body: `Stops every countdown on the board for ${FREEZE.duration} seconds. Farm fast.`,
+    body: `Stops every countdown on the board for ${FREEZE.duration} seconds. Introduced at depth &minus;7, and gone once taken.`,
   },
 ];

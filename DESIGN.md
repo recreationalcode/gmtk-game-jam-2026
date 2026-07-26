@@ -219,12 +219,41 @@ Floor `n` is an `S × S` grid where `S` grows with depth (4 → 10, capped). The
 world extent grows *sub-linearly*, so tiles shrink as you descend: more choices,
 smaller targets, tighter execution. Difficulty ramps without a difficulty knob.
 
-The *mix* ramps too. The UP-tile share climbs from 20% at the surface toward a
-44% cap, and the guaranteed floor under the number-tile count falls to let it.
-Without that, a deep floor was a shallow floor with more tiles on it — more
-crowded, not more dangerous — and descending was close to free points. Now the
-trade is real: a bigger multiplier on a board where stringing safe tiles
-together is genuinely harder.
+### Floor themes
+
+Every floor has a *shape*, not just a size. A single mix scaled by depth makes
+descending a quantitative decision — the same board, worth more — when it should
+be a qualitative one. `src/game/Themes.ts` owns the table.
+
+| Theme | Mix | Cooldown |
+|---|---|---|
+| **default** | 40% numbers, 50% up, 10% powerups | — |
+| **numbers** | Big values, 25% up, freeze weighted heavily inside the powerup share | 4 floors |
+| **hazard** | 68% up, likelier with depth | 3 floors |
+| **bounty** | 35% powerups, never freeze | 5 floors |
+| **reveal ×3** | One powerup only, at depths −3, −5, −7 | pinned |
+
+Cooldowns rather than pure weights, because two hazard floors back to back is
+unfair rather than hard, and two paydays in a row spends the surprise. Nothing
+is themed before depth 4: a themed floor means nothing to someone who has not
+seen the default to contrast it against.
+
+**Exactly one down tile per floor.** Two made descending a matter of whichever
+was nearer, which is not a decision.
+
+**The first floor has no hazards at all** — not at spawn, and not by burnout
+either, since its up-ceiling is zero. It is where a player learns that landing
+does something, and it cannot teach that if some landings undo themselves.
+
+**Reveal floors do not reset on leaving**, unlike every other floor. They are
+deliberately stacked with one powerup, which is a fine reward for arriving and
+an exploit if returning refills it. And a collected powerup never returns
+anywhere — same rule as a scored number.
+
+**Powerups are introduced strictly in order.** A named-kind theme still respects
+the unlock depths; only a reveal floor ignores them. Without that the "high
+numbers" floor, which favours freeze, would hand out a freeze tile three floors
+before the one that exists to explain what freeze is.
 
 - **Descending** dissolves the current floor tile-by-tile in a radial wave from
   the down tile, revealing the next floor, and increments the multiplier.

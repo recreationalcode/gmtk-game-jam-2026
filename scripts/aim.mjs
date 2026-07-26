@@ -165,16 +165,20 @@ const park = (height) =>
 
 /** Point at a cell, failing loudly rather than quietly aiming off-screen. */
 const pointAt = async (gx, gy) => {
-  // The camera leans with velocity and damps back over a few frames, so a
-  // cell's screen position is only meaningful once it has settled.
-  await page.waitForTimeout(120);
-  const screen = await cellScreen(gx, gy);
-  if (!screen.onScreen) {
-    failures.push(`tile ${gx},${gy} was off-screen — the test cannot point at it`);
-    return false;
+  // The camera leans with velocity and damps back over several frames, so a
+  // cell's screen position is only meaningful once it has settled — and under a
+  // software renderer "several frames" is long enough to be worth retrying
+  // rather than declaring the tile unreachable on the first look.
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await page.waitForTimeout(150);
+    const screen = await cellScreen(gx, gy);
+    if (screen.onScreen) {
+      await page.mouse.move(box.x + screen.x, box.y + screen.y);
+      return true;
+    }
   }
-  await page.mouse.move(box.x + screen.x, box.y + screen.y);
-  return true;
+  failures.push(`tile ${gx},${gy} stayed off-screen — the test cannot point at it`);
+  return false;
 };
 
 // High enough that the fall is long and the whole floor is in frame. Falling

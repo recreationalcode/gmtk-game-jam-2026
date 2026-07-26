@@ -309,44 +309,41 @@ export const SPECIAL_UNLOCK_DEPTH = {
  * Spawn weights at generation time. Decay handles the drift toward hostility,
  * so the authored mix stays generous.
  */
+/**
+ * Spawn knobs that are *not* per-theme.
+ *
+ * The tile mix itself lives in `src/game/Themes.ts`, because it is a property
+ * of what kind of floor you are on rather than a single global ratio. What is
+ * left here is the handful of things every floor shares.
+ */
 export const SPAWN_MIX = {
   /**
-   * Share of a floor that spawns as UP tiles, by depth.
+   * Exactly one way down, on every floor.
    *
-   * Deeper floors are meant to be more hostile, and until now they were only
-   * more *crowded* — the mix was flat, so a depth-10 board was a depth-0 board
-   * with more tiles on it. Growing the hazard share is what makes descending a
-   * real decision rather than strictly free points: you are trading a bigger
-   * multiplier for a board where the safe tiles are harder to string together.
-   *
-   * The `number` share is whatever is left after this and the specials.
+   * Two of them made descending a matter of whichever happened to be nearer,
+   * which is not a decision. One makes the way down a place you have to reach —
+   * and reaching it across a board that is half hazard is the game.
    */
-  up: (depth: number) => Math.min(0.44, 0.2 + depth * 0.03),
-  /** Share that spawns as specials, once any are unlocked. */
-  specials: 0.12,
-  /** Remainder goes to whichever specials are unlocked. */
-  timeWeight: 0.45,
-  boostWeight: 0.35,
-  freezeWeight: 0.2,
-
-  /**
-   * Floor under the number-tile count, as a fraction of the board.
-   *
-   * Falls with depth so the rising hazard share above can actually take effect
-   * — a flat 35% floor would simply undo it. It stays a floor, though: a board
-   * with nothing worth landing on is not difficult, it is just a dead end. In
-   * absolute terms the deeper floors still have far more scoring tiles, because
-   * they have far more tiles.
-   */
-  scoringFloor: (depth: number) => Math.max(0.2, 0.35 - depth * 0.015),
-
-  /** Down tiles are placed explicitly, not rolled. */
-  downTiles: (depth: number) => (depth >= 4 ? 2 : 1),
+  downTiles: 1,
   /**
    * A down tile is never placed in the ring immediately around your landing
    * point, so descending always requires at least one real traversal.
    */
   downMinDistanceFromEntry: 1.5,
+
+  /** Relative likelihood of each powerup within a floor's powerup share. */
+  timeWeight: 0.45,
+  boostWeight: 0.35,
+  freezeWeight: 0.2,
+
+  /**
+   * Guaranteed number tiles, as a fraction of what the theme's own mix implies.
+   *
+   * Insurance against a bad roll, not a floor of its own: a hazard floor is
+   * *meant* to be thin, and a fixed fraction here would quietly undo every
+   * theme that leans hostile.
+   */
+  scoringFloor: 0.55,
 } as const;
 
 export const TIME_TILE_BONUS = 4.0;

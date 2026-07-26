@@ -66,12 +66,40 @@ your view of the floor, and a wider view is how you find the way down.
 | Tile | What it does |
 |---|---|
 | **Number** (a digit) | Scores its value × your multiplier. Then it is spent. |
-| **Down** (chevrons pointing down, green) | You bounce off it, the whole floor falls away, and you drop to the next one. **Multiplier +1.** |
-| **Up** (chevrons pointing up, red) | Throws you back to the floor above. **Multiplier −1.** Deeper floors have a lot more of them. |
+| **Down** (green, showing the multiplier it grants) | **There is exactly one on every floor.** Bounce off it, the whole floor falls away, and you drop to the next. **Multiplier +1.** |
+| **Up** (chevrons pointing up, red) | Throws you back to the floor above. **Multiplier −1.** |
 | **Spent** (a dim circle) | Already cashed, or burned out. Worth nothing, still in your way. |
 | **Time** (a clock, from depth −3) | **+4 seconds.** |
 | **Boost** (nested squares, from depth −5) | **Multiplier +1** without descending. |
 | **Freeze** (a snowflake, from depth −7) | Freezes every countdown on the board for 4 seconds. Farm hard. |
+
+**Powerups do not come back.** Land on one and it is gone for the rest of the
+run — it does not return when you leave the floor and come back, and neither do
+numbers you have already scored. Whatever you take off a floor, you have taken.
+
+The three powerups are introduced one at a time, each on its own floor: **time
+at −3, boost at −5, freeze at −7.** Those floors are stacked with that one
+powerup so you cannot miss it, and they are the one kind of floor that **does
+not refresh** when you leave — a board that generous would be a farm if you
+could reset it by bouncing up and back.
+
+---
+
+## Floors have shapes
+
+Every floor is one of a few kinds, and you can read which from the top of the
+arc before you commit to a landing:
+
+| | |
+|---|---|
+| **The usual** | Roughly 40% numbers, 50% up tiles, 10% powerups. Most floors. |
+| **A rich one** | Big numbers, few hazards, and extra freeze tiles to farm them with. |
+| **A minefield** | Two thirds up tiles. Gets likelier the deeper you go. |
+| **A payday** | Rare. A third of the board is time and boost tiles. |
+
+**The first floor has no up tiles at all** — every tile on it either scores or
+takes you down. Hazards ease in over the next two floors. The same kind of
+floor never comes round twice in a row.
 
 ---
 
@@ -101,19 +129,21 @@ one you were too slow to cash.
 Three things stop that from spiralling:
 
 1. **A floor can only get so hostile.** There is a ceiling on how much of a
-   floor may be UP tiles at once — about 45% at the surface, rising with depth.
+   floor may be UP tiles at once — about 45% early on, rising with depth, and
+   *zero* on the first floor, where a burnout goes dead instead.
    Past it, further burnouts go *dead* instead: worth nothing, but harmless. The
    board runs out of opportunities before it becomes a minefield.
 2. **Leaving a floor resets it.** Up *or* down: the moment you leave, every
    number on that floor goes back to a fresh value, and anything that burned
    out comes back as a number. Decay is recurring pressure, not permanent
-   damage.
+   damage. The exception is the three powerup-reveal floors, which keep their
+   state.
 3. **The clock is the only thing you can actually lose.**
 
-What *doesn't* reset: **tiles you already cashed stay spent.** That is what
-stops a floor being farmed by bouncing down and straight back up — its
-harvestable total only ever falls. A floor you return to is a real place you
-left, just not a graveyard.
+What *doesn't* reset: **anything you took stays taken.** Numbers you scored and
+powerups you collected are gone for good. That is what stops a floor being
+farmed by bouncing down and straight back up — its harvestable total only ever
+falls. A floor you return to is a real place you left, just not a graveyard.
 
 **Points go stale — take the nine now, not the four later.**
 

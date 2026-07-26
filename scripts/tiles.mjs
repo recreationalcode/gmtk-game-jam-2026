@@ -197,6 +197,95 @@ if (report.afterReturn.scoredTilesRevived > 0) {
   );
 }
 
+// --- what you take is gone for good ----------------------------------------
+//
+// Collected powerups and scored numbers alike. Without that a floor could be
+// refilled by bouncing down and straight back up, which costs nothing in
+// multiplier terms — and a reveal floor, stacked with one powerup by design,
+// would be the best farm in the game.
+report.collected = await (async () => {
+  await hover();
+  const before = await page.evaluate(() => {
+    const g = window.pogo.game;
+    const f = g.floor;
+    // Collect every powerup on the floor the way landing on one does.
+    const taken = [];
+    for (const t of f.tiles) {
+      if (t.kind === 4) g.gainTime(t, 0, 0);
+      else if (t.kind === 5) g.applyBoost(t, 0, 0);
+      else if (t.kind === 6) g.applyFreeze(t, 0, 0);
+      else continue;
+      taken.push([t.gx, t.gy]);
+    }
+    return { taken, theme: f.theme };
+  });
+
+  await ascend();
+  await descend();
+
+  const after = await page.evaluate(
+    (cells) => {
+      const f = window.pogo.game.floor;
+      return {
+        theme: f.theme,
+        revived: cells.filter(([gx, gy]) => [4, 5, 6].includes(f.at(gx, gy).kind)).length,
+        checked: cells.length,
+      };
+    },
+    before.taken,
+  );
+  return { ...before, ...after };
+})();
+
+if (report.collected.checked === 0) {
+  failures.push('no powerups were on the floor to collect — the test proved nothing');
+} else if (report.collected.revived > 0) {
+  failures.push(
+    `${report.collected.revived} collected powerup(s) came back after leaving and returning`,
+  );
+}
+
+// --- a reveal floor does not refresh at all --------------------------------
+report.revealPersists = await (async () => {
+  // Depth 5 is the BOOST reveal.
+  await page.evaluate(() => {
+    const g = window.pogo.game;
+    g.player.y = g.floor.y + 40;
+    while (g.depth > 5) g.ascend(0, 0, g.floor.tiles[0]);
+    while (g.depth < 5) g.descend(0, 0);
+  });
+  await page.waitForTimeout(400);
+  const before = await page.evaluate(() => {
+    const f = window.pogo.game.floor;
+    // Run the numbers down so a reset would be unmistakable.
+    for (const t of f.tiles) if (t.kind === 0) t.value = 1;
+    const nums = f.tiles.filter((t) => t.kind === 0);
+    return {
+      theme: f.theme,
+      mean: +(nums.reduce((a, t) => a + t.value, 0) / Math.max(1, nums.length)).toFixed(2),
+    };
+  });
+  await ascend();
+  await descend();
+  const after = await page.evaluate(() => {
+    const f = window.pogo.game.floor;
+    const nums = f.tiles.filter((t) => t.kind === 0);
+    return {
+      theme: f.theme,
+      mean: +(nums.reduce((a, t) => a + t.value, 0) / Math.max(1, nums.length)).toFixed(2),
+    };
+  });
+  return { before, after };
+})();
+
+if (!report.revealPersists.before.theme.startsWith('reveal')) {
+  failures.push(`expected a reveal floor at depth 5, got ${report.revealPersists.before.theme}`);
+} else if (report.revealPersists.after.mean > report.revealPersists.before.mean + 0.5) {
+  failures.push(
+    `a reveal floor reset its numbers on re-entry (${report.revealPersists.before.mean} -> ${report.revealPersists.after.mean})`,
+  );
+}
+
 console.log(JSON.stringify({ report, failures, pageErrors }, null, 1));
 
 await browser.close();
