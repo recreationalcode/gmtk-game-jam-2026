@@ -103,8 +103,9 @@ async function readBoard(request: Request, env: Env, cors: HeadersInit): Promise
     `${env.baseUrl}/api/leaderboards/${id}/entries?limit=${limit}`,
   ];
 
-  let lastError = 'Unknown error';
+  const attempts: Attempt[] = [];
   for (const candidate of candidates) {
+    const path = new URL(candidate).pathname;
     let upstream: Response;
     try {
       upstream = await fetchUpstream(candidate, {
@@ -112,12 +113,16 @@ async function readBoard(request: Request, env: Env, cors: HeadersInit): Promise
         headers: { 'x-api-key': env.apiKey, accept: 'application/json' },
       });
     } catch (err) {
-      lastError = describeError(err);
+      attempts.push({ path, status: null, detail: describeError(err) });
       continue;
     }
 
     if (!upstream.ok) {
-      lastError = `HTTP ${upstream.status}`;
+      // Keep the body. "HTTP 404" on its own cannot tell a wrong URL shape from
+      // a leaderboard id that does not exist, and those have different fixes.
+      // Upstream almost always says which one it is.
+      const detail = await upstream.text().catch(() => '');
+      attempts.push({ path, status: upstream.status, detail: detail.slice(0, 300) });
       continue;
     }
 
@@ -136,7 +141,51 @@ async function readBoard(request: Request, env: Env, cors: HeadersInit): Promise
     );
   }
 
-  return json({ error: `Upstream read failed: ${lastError}` }, 502, cors);
+  // Every candidate failed. Report all of them, with what upstream actually
+  // said, because a 502 whose only detail is "HTTP 404" is not something anyone
+  // can act on — and the request shape here was reconstructed from client
+  // libraries rather than executed, so a wrong guess is a live possibility.
+  return json(
+    {
+      error: `Upstream read failed: ${attempts
+        .map((a) => `${a.path} → ${a.status ?? a.detail}`)
+        .join(', ')}`,
+      hint: diagnose(attempts),
+      attempts,
+    },
+    502,
+    cors,
+  );
+}
+
+interface Attempt {
+  path: string;
+  /** null when the request never got a response at all. */
+  status: number | null;
+  detail: string;
+}
+
+/** Turn the collected statuses into the thing to go and change. */
+function diagnose(attempts: Attempt[]): string {
+  const statuses = attempts.map((a) => a.status);
+  const all = (p: (s: number | null) => boolean) => statuses.length > 0 && statuses.every(p);
+
+  if (all((s) => s === null)) {
+    return 'No response at all. Check SIMPLEBOARDS_BASE_URL, or upstream is down.';
+  }
+  if (all((s) => s === 401 || s === 403)) {
+    return 'Upstream refused the key. Check SIMPLEBOARDS_API_KEY and that it has read access.';
+  }
+  if (all((s) => s === 404)) {
+    return 'Both URL shapes 404. Either SIMPLEBOARDS_LEADERBOARD_ID is wrong, or neither candidate path in readBoard() matches the current API — check their docs and pin the right one.';
+  }
+  if (statuses.some((s) => s === 429)) {
+    return 'Rate limited upstream. Back off and retry.';
+  }
+  if (all((s) => s !== null && s >= 500)) {
+    return 'Upstream is erroring. This one is not yours to fix; retry later.';
+  }
+  return 'See `attempts` for what each candidate path returned.';
 }
 
 // -- write -------------------------------------------------------------------
