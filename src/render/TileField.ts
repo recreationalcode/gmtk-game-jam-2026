@@ -222,6 +222,7 @@ varying vec4 vState;
 varying vec2 vGlyph;
 varying float vTop;
 varying float vFogDepth;
+varying float vPhase;
 
 void main() {
   vUv = uv;
@@ -229,6 +230,11 @@ void main() {
   vState = aState;
   vGlyph = aGlyph;
   vTop = step(0.5, normal.y);
+
+  // Per-tile phase for the urgency pulse, taken straight off the instance
+  // translation so it costs no attribute. Without it every dying tile on the
+  // floor breathes on the same sine and the board strobes as one.
+  vPhase = instanceMatrix[3].x * 2.7 + instanceMatrix[3].z * 1.9;
 
   // Each tile waits its turn, then shrinks and drops out of the world.
   float d = clamp((uDissolve - aState.w) / max(0.0001, 1.0 - aState.w), 0.0, 1.0);
@@ -261,6 +267,7 @@ varying vec4 vState;
 varying vec2 vGlyph;
 varying float vTop;
 varying float vFogDepth;
+varying float vPhase;
 
 // Data textures are not flipped on upload the way canvas textures are, so v is
 // inverted here to keep glyphs the right way up.
@@ -319,8 +326,10 @@ void main() {
     col += vColor * vState.y * 0.75 * ink;
 
     // Tiles about to burn out breathe, so the board's decay is legible from
-    // the top of the arc without reading every digit.
-    float pulse = 0.5 + 0.5 * sin(uTime * 9.0);
+    // the top of the arc without reading every digit. Each tile keeps its own
+    // phase — a floor of synchronised sines reads as the whole board flashing
+    // rather than as individual tiles running out of time.
+    float pulse = 0.5 + 0.5 * sin(uTime * 7.0 + vPhase);
     col += vColor * vState.z * vState.z * pulse * 0.28 * ink;
   } else {
     col = vColor * 0.14;

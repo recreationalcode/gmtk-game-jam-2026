@@ -31,6 +31,17 @@ export class Floor {
   dissolve = 0;
   dissolveOrigin: { x: number; z: number } | null = null;
 
+  /**
+   * Shuffled bag of spawn values, dealt from rather than rolled independently.
+   *
+   * Independent rolls over a 4-wide band clump badly at this sample size: a
+   * 5×5 floor routinely came up with three or four of one digit and none of
+   * another, which reads as "they're all the same number" even though the draw
+   * was fair. A bag guarantees every value in the band appears before any
+   * repeats, so the board looks deliberately varied instead of merely random.
+   */
+  private readonly valueBag: number[] = [];
+
   constructor(depth: number, rand: Rand, entryGX: number, entryGY: number) {
     this.depth = depth;
     this.side = Floor.sideForDepth(depth);
@@ -90,37 +101,66 @@ export class Floor {
 
   private generate(rand: Rand, entryGX: number, entryGY: number): void {
     const count = this.side * this.side;
-    const minValue = this.minSpawnValue();
-
     const specials = this.unlockedSpecials();
 
     for (let i = 0; i < count; i++) {
       const gx = i % this.side;
       const gy = Math.floor(i / this.side);
       const kind = this.rollKind(rand, specials);
-      this.tiles.push({
+      const tile: Tile = {
         kind,
-        value: kind === TileKind.Number ? rand.int(minValue, TILE_VALUES.maxSpawn) : 0,
+        value: kind === TileKind.Number ? this.dealValue(rand) : 0,
         gx,
         gy,
-        decayTimer: TILE_DECAY.interval * rand.range(1 - TILE_DECAY.phaseJitter * 0.5, 1),
+        decayTimer: 0,
+        decayEvery: TILE_DECAY.interval,
         alive: 0,
         flash: 0,
         justBurnedOut: false,
         burned: false,
-      });
+      };
+      this.startClock(tile, rand);
+      this.tiles.push(tile);
     }
 
     this.placeDownTiles(rand, entryGX, entryGY);
-    this.guaranteeSomeScoring(rand, minValue, entryGX, entryGY);
+    this.guaranteeSomeScoring(rand, entryGX, entryGY);
   }
 
   /** Lowest value a number tile spawns with on this floor. */
   minSpawnValue(): number {
-    return Math.min(
-      TILE_VALUES.maxSpawn,
+    // Clamped to keep a spread: the depth ramp may raise the floor of the
+    // range, but never far enough to squeeze out the variety.
+    return clamp(
       Math.round(TILE_VALUES.minSpawn + this.depth * TILE_VALUES.minSpawnPerDepth),
+      1,
+      TILE_VALUES.maxSpawn - TILE_VALUES.minSpread,
     );
+  }
+
+  /**
+   * Next spawn value, dealt from a shuffled bag that refills when empty. See
+   * `valueBag` for why this is not just `rand.int(min, max)`.
+   */
+  private dealValue(rand: Rand): number {
+    if (this.valueBag.length === 0) {
+      for (let v = this.minSpawnValue(); v <= TILE_VALUES.maxSpawn; v++) this.valueBag.push(v);
+      rand.shuffle(this.valueBag);
+    }
+    return this.valueBag.pop()!;
+  }
+
+  /**
+   * Give a tile its own countdown clock: a slightly different rate, and a first
+   * tick placed anywhere within it.
+   */
+  private startClock(tile: Tile, rand: Rand): void {
+    tile.decayEvery =
+      TILE_DECAY.interval *
+      rand.range(1 - TILE_DECAY.intervalJitter, 1 + TILE_DECAY.intervalJitter);
+    // Floored well above zero so a tile never spawns already mid-tick.
+    tile.decayTimer =
+      tile.decayEvery * rand.range(Math.max(0.08, 1 - TILE_DECAY.phaseJitter), 1);
   }
 
   private unlockedSpecials(): Array<{ kind: TileKind; weight: number }> {
@@ -197,12 +237,7 @@ export class Floor {
    * A floor that rolls almost all UP tiles is a miserable floor. Guarantee a
    * minimum number of scoring tiles so no seed produces a dead board.
    */
-  private guaranteeSomeScoring(
-    rand: Rand,
-    minValue: number,
-    entryGX: number,
-    entryGY: number,
-  ): void {
+  private guaranteeSomeScoring(rand: Rand, entryGX: number, entryGY: number): void {
     const target = Math.max(3, Math.floor(this.tiles.length * 0.35));
     let scoring = this.tiles.reduce((n, t) => n + (t.kind === TileKind.Number ? 1 : 0), 0);
     if (scoring >= target) return;
@@ -217,7 +252,8 @@ export class Floor {
       const t = this.tiles[idx]!;
       if (chebyshev(t.gx, t.gy, entryGX, entryGY) === 0) continue;
       t.kind = TileKind.Number;
-      t.value = rand.int(minValue, TILE_VALUES.maxSpawn);
+      t.value = this.dealValue(rand);
+      this.startClock(t, rand);
       scoring++;
     }
   }
@@ -243,9 +279,9 @@ export class Floor {
 
       tile.decayTimer -= dt * decayScale;
       while (tile.decayTimer <= 0) {
-        tile.decayTimer += TILE_DECAY.interval;
+        tile.decayTimer += tile.decayEvery;
         tile.value--;
-        tile.flash = 0.5;
+        tile.flash = TILE_DECAY.tickFlash;
         if (tile.value <= 0) {
           // Once the floor has as many hazards as it is allowed, further
           // burnouts go dead rather than hostile.
@@ -266,30 +302,41 @@ export class Floor {
   }
 
   /**
-   * Re-entering a floor we previously dropped through.
+   * Re-entering a floor we previously left, in either direction.
    *
-   * Floors persist for the whole run, but `dissolve` is left at 1 once the
-   * drop-through animation finishes — so without this, returning to a floor
-   * makes it the active floor with every tile scaled to zero. It renders as an
-   * empty void you can still bounce on.
+   * Two jobs. The first is cleanup: floors persist for the whole run, but
+   * `dissolve` is left at 1 once the drop-through animation finishes — so
+   * without resetting it, returning to a floor makes it the active floor with
+   * every tile scaled to zero. It renders as an empty void you can still bounce
+   * on. Replaying the spawn animation is not merely tidy either: it reads as
+   * the floor re-forming around you, which is the right story for arriving.
    *
-   * Replaying the spawn animation is not just cleanup: it reads as the floor
-   * re-forming above you, which is the right story for coming back up.
+   * The second is the countdown reset. Every number tile goes back to a fresh
+   * value on a fresh clock, and tiles that burned out come back as numbers.
+   * What does *not* come back is anything you scored — those stay spent, so a
+   * floor's harvestable total only ever falls and there is no way to farm one
+   * by bouncing down and straight back up.
+   *
+   * Done on arrival rather than departure purely so the numbers do not visibly
+   * change on a floor that is still on screen mid-dissolve. Nothing decays
+   * while a floor is unoccupied, so the two are equivalent.
    */
   restore(rand: Rand): void {
     this.dissolve = 0;
     this.dissolveOrigin = null;
 
-    const minValue = this.minSpawnValue();
     for (const tile of this.tiles) {
       tile.alive = 0;
-      if (!tile.burned || !TILE_DECAY.refreshBurnedOnReentry) continue;
+      if (!TILE_DECAY.resetOnLeave) continue;
 
-      // Came back from the dead. Authored UP tiles are left alone.
+      // Authored hazards keep the floor's shape; scored and used tiles stay
+      // consumed. Everything else is either a live number or a burned one.
+      const revivable = tile.kind === TileKind.Number || tile.burned;
+      if (!revivable) continue;
+
       tile.kind = TileKind.Number;
-      tile.value = rand.int(minValue, TILE_VALUES.maxSpawn);
-      tile.decayTimer =
-        TILE_DECAY.interval * rand.range(1 - TILE_DECAY.phaseJitter * 0.5, 1);
+      tile.value = this.dealValue(rand);
+      this.startClock(tile, rand);
       tile.burned = false;
       tile.flash = 1;
     }

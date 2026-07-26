@@ -12,6 +12,11 @@ export interface Tile {
   /** Seconds until the next countdown decrement. */
   decayTimer: number;
   /**
+   * Seconds between this tile's decrements. Per-tile rather than global so a
+   * floor drifts out of lockstep instead of ticking — and flashing — as one.
+   */
+  decayEvery: number;
+  /**
    * 0 → just appeared, 1 → fully settled. Drives the spawn animation and is
    * also read by the renderer during a floor dissolve (running back to 0).
    */

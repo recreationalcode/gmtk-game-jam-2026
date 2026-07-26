@@ -81,8 +81,10 @@ This is the part that catches people out.
 
 **Every number on the board is ticking down**, roughly once every two and a half
 seconds — about one tick per two bounces — whether you are looking at it or not.
-A number that reaches zero does not just vanish: **it burns out into an UP
-tile**.
+Each tile runs on its own slightly different clock, so they do not tick as one
+wave, and two tiles showing the same digit are not necessarily about to die
+together. A number that reaches zero does not just vanish: **it burns out into
+an UP tile**.
 
 So a floor starts generous and *rots*. Tiles shift colour as they decay, from
 cool to hot, and pulse when they are nearly gone. Every UP tile you land on is
@@ -93,16 +95,18 @@ Three things stop that from spiralling:
 1. **A floor can only get so hostile.** Once about 45% of it is UP tiles,
    further burnouts go *dead* instead — worth nothing, but harmless. The board
    runs out of opportunities before it becomes a minefield.
-2. **Burned tiles come back.** Every time you change level, the tiles that
-   burned out on a floor return as fresh numbers. Decay is recurring pressure,
-   not permanent damage.
+2. **Leaving a floor resets it.** Up *or* down: the moment you leave, every
+   number on that floor goes back to a fresh value, and anything that burned
+   out comes back as a number. Decay is recurring pressure, not permanent
+   damage.
 3. **The clock is the only thing you can actually lose.**
 
-What *doesn't* reset: tiles you already cashed stay spent, and surviving numbers
-keep the value they decayed to. A floor you return to is a real place you left,
-just not a graveyard.
+What *doesn't* reset: **tiles you already cashed stay spent.** That is what
+stops a floor being farmed by bouncing down and straight back up — its
+harvestable total only ever falls. A floor you return to is a real place you
+left, just not a graveyard.
 
-**Points go stale — take the nine now, not the three later.**
+**Points go stale — take the nine now, not the four later.**
 
 ---
 

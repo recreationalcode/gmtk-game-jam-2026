@@ -3,6 +3,7 @@ import { formatScore } from '../core/MathUtil';
 import type { RunSummary } from '../game/GameState';
 import type { BoardResult } from '../net/Leaderboard';
 import { GLYPH, renderGlyphToCanvas, renderMultiplierToCanvas } from '../render/GlyphAtlas';
+import { applyIcons, icon, iconEl, setIcon, type IconName } from './Icons';
 
 export type ScreenName = 'title' | 'guide' | 'pause' | 'over' | 'board' | null;
 
@@ -90,12 +91,12 @@ export class Screens {
         <h1 class="title">POGO<br /><em>DROP</em></h1>
         <p class="tagline">Bounce down before the clock runs out</p>
         <div class="button-row">
-          <button data-act="play">Play</button>
+          <button data-act="play" data-icon="play">Play</button>
         </div>
         <div class="button-row">
-          <button class="ghost" data-act="guide">How to play</button>
-          <button class="ghost" data-act="board">Leaderboard</button>
-          <button class="ghost" data-act="sound">Sound: on</button>
+          <button class="ghost" data-act="guide" data-icon="help">How to play</button>
+          <button class="ghost" data-act="board" data-icon="board">Leaderboard</button>
+          <button class="ghost" data-act="sound" data-icon="soundOn">Sound: on</button>
         </div>
         <p class="notice" data-role="best"></p>
         <p class="notice">
@@ -104,6 +105,7 @@ export class Screens {
         </p>
       </div>
     `;
+    applyIcons(el);
     this.bestEl = el.querySelector<HTMLElement>('[data-role="best"]')!;
     this.soundButton = el.querySelector<HTMLButtonElement>('[data-act="sound"]')!;
 
@@ -123,12 +125,13 @@ export class Screens {
         <div class="board" data-role="board"></div>
         <p class="notice" data-role="board-notice"></p>
         <div class="button-row">
-          <button data-act="back">Back</button>
-          <button class="ghost" data-act="refresh">Refresh</button>
+          <button data-act="back" data-icon="back">Back</button>
+          <button class="ghost" data-act="refresh" data-icon="refresh">Refresh</button>
         </div>
       </div>
     `;
 
+    applyIcons(el);
     this.boardViews.push({
       rows: el.querySelector<HTMLElement>('[data-role="board"]')!,
       notice: el.querySelector<HTMLElement>('[data-role="board-notice"]')!,
@@ -186,6 +189,7 @@ export class Screens {
   private toggleSound(): void {
     this.soundOn = !this.soundOn;
     this.soundButton.textContent = `Sound: ${this.soundOn ? 'on' : 'off'}`;
+    setIcon(this.soundButton, this.soundOn ? 'soundOn' : 'soundOff');
     this.cb.onToggleSound(this.soundOn);
   }
 
@@ -220,24 +224,35 @@ export class Screens {
 
         <h2>The countdown</h2>
         <p>
-          Numbers tick down about once a second, everywhere, all the time. A tile that reaches
-          zero <b>burns out into an UP tile</b>. Every floor starts generous and rots into
-          hostile, so points go stale &mdash; take the nine now, not the three later.
+          Every number ticks down, everywhere, all the time &mdash; each on its own slightly
+          different clock. A tile that reaches zero <b>burns out into an UP tile</b>. So points
+          go stale: take the nine now, not the four later.
+        </p>
+        <p>
+          Leaving a floor &mdash; up <i>or</i> down &mdash; <b>resets its numbers</b>. The floor
+          you come back to is fresh, except for the tiles you already cashed in. Those stay
+          spent, so a floor is worth less every time you return to it.
         </p>
 
         <div class="button-row">
-          <button data-act="back">Back</button>
+          <button data-act="back" data-icon="back">Back</button>
         </div>
       </div>
     `;
 
+    applyIcons(el);
+
     const keys = el.querySelector<HTMLElement>('[data-role="keys"]')!;
-    for (const [k, v] of CONTROL_ROWS) {
+    for (const row of CONTROL_ROWS) {
+      const iEl = document.createElement('div');
+      iEl.className = 'key-icon';
+      iEl.appendChild(iconEl(row.icon));
       const kEl = document.createElement('div');
-      kEl.innerHTML = k;
+      // Static, code-authored markup — the <kbd> tags are the point of it.
+      kEl.innerHTML = row.keys;
       const vEl = document.createElement('div');
-      vEl.textContent = v;
-      keys.append(kEl, vEl);
+      vEl.textContent = row.what;
+      keys.append(iEl, kEl, vEl);
     }
 
     const legend = el.querySelector<HTMLElement>('[data-role="legend"]')!;
@@ -267,14 +282,15 @@ export class Screens {
     el.innerHTML = `
       <div class="panel">
         <h1 class="title" style="font-size:clamp(1.8rem,8vw,2.6rem)">PAUSED</h1>
-        <div class="button-row"><button data-act="resume">Resume</button></div>
+        <div class="button-row"><button data-act="resume" data-icon="play">Resume</button></div>
         <div class="button-row">
-          <button class="ghost" data-act="board">Leaderboard</button>
-          <button class="ghost" data-act="restart">Restart</button>
-          <button class="ghost" data-act="quit">Quit</button>
+          <button class="ghost" data-act="board" data-icon="board">Leaderboard</button>
+          <button class="ghost" data-act="restart" data-icon="restart">Restart</button>
+          <button class="ghost" data-act="quit" data-icon="quit">Quit</button>
         </div>
       </div>
     `;
+    applyIcons(el);
     el.querySelector('[data-act="board"]')!.addEventListener('click', () => this.openBoard('pause'));
     el.querySelector('[data-act="resume"]')!.addEventListener('click', () => this.cb.onResume());
     el.querySelector('[data-act="restart"]')!.addEventListener('click', () => this.cb.onRestart());
@@ -295,18 +311,19 @@ export class Screens {
         <input type="text" data-role="name" maxlength="16" placeholder="YOUR NAME"
                autocomplete="off" autocapitalize="characters" spellcheck="false" />
         <div class="button-row">
-          <button data-act="submit">Submit score</button>
-          <button class="ghost" data-act="again">Play again</button>
+          <button data-act="submit" data-icon="submit">Submit score</button>
+          <button class="ghost" data-act="again" data-icon="restart">Play again</button>
         </div>
         <div class="board" data-role="board"></div>
         <p class="notice" data-role="board-notice"></p>
         <div class="button-row">
-          <button class="ghost" data-act="guide">How to play</button>
-          <button class="ghost" data-act="title">Title</button>
+          <button class="ghost" data-act="guide" data-icon="help">How to play</button>
+          <button class="ghost" data-act="title" data-icon="home">Title</button>
         </div>
       </div>
     `;
 
+    applyIcons(el);
     this.nameInput = el.querySelector<HTMLInputElement>('[data-role="name"]')!;
     this.submitButton = el.querySelector<HTMLButtonElement>('[data-act="submit"]')!;
     this.boardViews.push({
@@ -330,8 +347,7 @@ export class Screens {
       this.nameInput.focus();
       return;
     }
-    this.submitButton.disabled = true;
-    this.submitButton.textContent = 'Submitting…';
+    this.setSubmitState('sending');
     this.cb.onSubmit(name);
   }
 
@@ -342,15 +358,15 @@ export class Screens {
 
     const stats = el.querySelector<HTMLElement>('[data-role="stats"]')!;
     stats.replaceChildren();
-    for (const [label, value] of [
-      ['Deepest', summary.maxDepth === 0 ? 'Surface' : `−${summary.maxDepth}`],
-      ['Descents', String(summary.descents)],
-      ['Perfects', String(summary.perfects)],
-      ['Best combo', `×${summary.bestCombo}`],
-    ] as const) {
+    for (const [label, value, ico] of [
+      ['Deepest', summary.maxDepth === 0 ? 'Surface' : `−${summary.maxDepth}`, 'depth'],
+      ['Descents', String(summary.descents), 'layers'],
+      ['Perfects', String(summary.perfects), 'target'],
+      ['Best combo', `×${summary.bestCombo}`, 'bolt'],
+    ] as ReadonlyArray<readonly [string, string, IconName]>) {
       const d = document.createElement('div');
       const s = document.createElement('span');
-      s.textContent = label;
+      s.append(iconEl(ico), document.createTextNode(label));
       const b = document.createElement('b');
       b.textContent = value;
       d.append(s, b);
@@ -358,8 +374,7 @@ export class Screens {
     }
 
     if (storedName && !this.nameInput.value) this.nameInput.value = storedName;
-    this.submitButton.disabled = false;
-    this.submitButton.textContent = 'Submit score';
+    this.setSubmitState('idle');
     this.setBoardLoading();
     this.cb.onRefreshBoard();
   }
@@ -373,22 +388,27 @@ export class Screens {
       case 'sending':
         this.submitButton.disabled = true;
         this.submitButton.textContent = 'Submitting…';
+        setIcon(this.submitButton, 'submit');
         break;
       case 'done':
         this.submitButton.disabled = true;
         this.submitButton.textContent = doneLabel;
+        setIcon(this.submitButton, 'check');
         break;
       case 'failed':
         this.submitButton.disabled = false;
         this.submitButton.textContent = 'Retry submit';
+        setIcon(this.submitButton, 'warning');
         break;
       default:
         this.submitButton.disabled = false;
         this.submitButton.textContent = 'Submit score';
+        setIcon(this.submitButton, 'submit');
     }
     if (message) {
       for (const view of this.boardViews) {
         view.notice.textContent = message;
+        if (state === 'failed') view.notice.prepend(iconEl('warning'));
         view.notice.classList.toggle('warn', state === 'failed');
       }
     }
@@ -418,7 +438,10 @@ export class Screens {
 
       const rank = document.createElement('span');
       rank.className = 'rank';
-      rank.textContent = `${entry.rank}.`;
+      // The leader gets a crown rather than a numeral — it is the one row
+      // anybody scans the board for.
+      if (entry.rank === 1) rank.appendChild(iconEl('crown', 'crown'));
+      else rank.textContent = `${entry.rank}.`;
 
       const name = document.createElement('span');
       name.textContent = entry.name;
@@ -435,6 +458,7 @@ export class Screens {
       view.notice.textContent = result.error
         ? `Showing local scores — online board unreachable (${result.error}).`
         : 'Showing scores saved on this device. Online board is not configured.';
+      view.notice.prepend(iconEl('warning'));
       view.notice.classList.add('warn');
     } else {
       view.notice.textContent = '';
@@ -456,7 +480,7 @@ export class Screens {
   private buildRotateHint(): void {
     const el = document.createElement('div');
     el.id = 'rotate-hint';
-    el.innerHTML = `<div><p>Rotate your device upright.</p>
+    el.innerHTML = `<div>${icon('rotate', 'big')}<p>Rotate your device upright.</p>
       <p class="notice">Pogo Drop wants a taller screen than this.</p></div>`;
     this.root.appendChild(el);
     // Only nag on genuinely touch devices; a short desktop window is fine.
@@ -464,12 +488,24 @@ export class Screens {
   }
 }
 
-const CONTROL_ROWS: ReadonlyArray<readonly [string, string]> = [
-  ['<kbd>Move mouse</kbd>', 'Steer — the screen is the floor, point where you want to go'],
-  ['<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>', 'Steer with the keyboard instead'],
-  ['<kbd>Space</kbd> / <kbd>Click</kbd>', 'Time your bounce'],
-  ['<kbd>Touch</kbd>', 'Hold and drag to aim, then release to bounce'],
-  ['<kbd>Esc</kbd> / <kbd>P</kbd>', 'Pause'],
+const CONTROL_ROWS: ReadonlyArray<{ icon: IconName; keys: string; what: string }> = [
+  {
+    icon: 'mouse',
+    keys: '<kbd>Move mouse</kbd>',
+    what: 'Steer — the screen is the floor, point where you want to go',
+  },
+  {
+    icon: 'keyboard',
+    keys: '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>',
+    what: 'Steer with the keyboard instead',
+  },
+  { icon: 'click', keys: '<kbd>Space</kbd> / <kbd>Click</kbd>', what: 'Time your bounce' },
+  {
+    icon: 'touch',
+    keys: '<kbd>Touch</kbd>',
+    what: 'Hold and drag to aim, then release to bounce',
+  },
+  { icon: 'pause', keys: '<kbd>Esc</kbd> / <kbd>P</kbd>', what: 'Pause' },
 ];
 
 const LEGEND_ROWS: ReadonlyArray<{
@@ -497,7 +533,7 @@ const LEGEND_ROWS: ReadonlyArray<{
     glyph: GLYPH.UP,
     color: '#ff3b5c',
     title: 'UP',
-    body: 'Throws you back to the floor above. Multiplier &minus;1 and lost time &mdash; but anything that burned out up there comes back as numbers.',
+    body: 'Throws you back to the floor above. Multiplier &minus;1 and lost time &mdash; but the floor up there has reset, so its numbers are full again.',
   },
   {
     glyph: GLYPH.SPENT,

@@ -190,13 +190,30 @@ export const TILE_VALUES = {
   /**
    * Number tiles spawn with a value in this inclusive range, and the value is
    * also the tile's lifetime in decay ticks — a 5 dies in five ticks. Combined
-   * with the decay interval that is 11–20 seconds of life, so a floor ages
-   * over a whole visit rather than collapsing into arrows within a few bounces.
+   * with the decay interval that is 10–23 seconds of life, so a floor ages over
+   * a whole visit rather than collapsing into arrows within a few bounces.
+   *
+   * The floor of this range is the knob that trades variety against decay
+   * pressure, because those are the same number: dropping it to 3 buys another
+   * distinct digit on the board but also means the shortest-lived tile dies in
+   * seven seconds rather than ten. Four is the compromise — six distinct values
+   * at the surface, and nothing that rots faster than the tuning the decay rate
+   * was set against.
    */
-  minSpawn: 5,
+  minSpawn: 4,
   maxSpawn: 9,
   /** Deeper floors spawn richer tiles: minSpawn rises by this per depth. */
-  minSpawnPerDepth: 0.35,
+  minSpawnPerDepth: 0.3,
+  /**
+   * The spawn range is never allowed to narrow below this many steps.
+   *
+   * Without it the depth ramp eats its own variety: `minSpawn` climbs into
+   * `maxSpawn` and every tile on the floor spawns as the same digit — by depth
+   * 9 the board was two values wide and by depth 10 it was literally all nines.
+   * A board of identical numbers has nothing to choose between, which throws
+   * away the one decision the player makes on every single bounce.
+   */
+  minSpread: 4,
 } as const;
 
 /**
@@ -229,24 +246,45 @@ export const TILE_DECAY = {
   maxUpFraction: 0.45,
   /** Decay rate multiplier once the endgame starts. */
   endgameScale: 1.35,
-  /** Stagger initial tick phase so a floor doesn't pulse — or die — in lockstep. */
+  /**
+   * Spread of the *first* tick, as a fraction of the interval. 1 means a tile's
+   * opening countdown lands anywhere in the interval rather than bunching up.
+   */
   phaseJitter: 1.0,
+  /**
+   * Per-tile variation in the interval itself, ± this fraction.
+   *
+   * Phase jitter alone is not enough, because every tile then ticks at exactly
+   * the same rate: whatever clusters the first tick creates are locked in for
+   * the rest of the run, and the floor flashes in visible waves forever. Giving
+   * each tile its own slightly different clock lets those clusters drift apart
+   * on their own, and means two tiles showing the same digit are not
+   * necessarily about to die together.
+   */
+  intervalJitter: 0.28,
+  /**
+   * Flash strength when a tile ticks down, 0–1.
+   *
+   * Deliberately well under the 1.0 a landing or a burnout gets. A decrement is
+   * ambient information — dozens happen a second across a deep floor — so it
+   * should register as a shimmer, not as an event. At 0.5 it pushed the tile
+   * over the bloom threshold and lit up like something had happened.
+   */
+  tickFlash: 0.22,
 
   /**
-   * Burned-out tiles come back as numbers when you re-enter a floor.
+   * Leaving a floor — up *or* down — restores its number tiles.
    *
    * Without this, decay is a ratchet: every floor you have ever visited is
    * strictly worse than when you left, so an UP tile compounds into a spiral
-   * you cannot climb out of. Refreshing them makes the countdown a recurring
-   * pressure rather than permanent damage, and keeps a bad bounce survivable.
+   * you cannot climb out of. Restoring makes the countdown a recurring pressure
+   * rather than permanent damage, and keeps a bad bounce survivable.
+   *
+   * Tiles you *scored* stay spent, which is what stops this being an exploit:
+   * a floor's harvestable total only ever goes down, so bouncing down and
+   * straight back up cannot farm it. See DESIGN.md.
    */
-  refreshBurnedOnReentry: true,
-
-  /**
-   * Cap on how much ageing a floor accumulates while you are away, seconds.
-   * A long excursion should not mean returning to a corpse.
-   */
-  maxAwaySeconds: 6,
+  resetOnLeave: true,
 } as const;
 
 export const FREEZE = {
@@ -609,6 +647,31 @@ export const AUDIO = {
   bpmStart: 96,
   bpmEnd: 150,
 } as const;
+
+/**
+ * The three pieces of music, all built from the same handful of synth voices.
+ *
+ * Splitting them by tempo, tone and gain rather than by having three separate
+ * engines is what keeps this cheap: the scheduler, the scale and the voices are
+ * shared, and a track is just a pattern function plus these three numbers.
+ */
+export const MUSIC_TRACKS = {
+  /** In-match. Tempo is interpolated bpmStart → bpmEnd by endgame intensity. */
+  game: { bpm: 96, cutoff: 1400, gain: 0.42 },
+  /**
+   * Title. Upbeat and groovy: four-on-the-floor, a backbeat clap and a
+   * syncopated bass. Brighter than the match music on purpose — the menu should
+   * sound like an invitation, not like the pressure you are about to be under.
+   */
+  title: { bpm: 112, cutoff: 4600, gain: 0.4 },
+  /**
+   * Post-run. Chill: no drums to speak of, long pads, a sparse melody. Quieter
+   * too, because it plays under a screen people are reading.
+   */
+  over: { bpm: 70, cutoff: 1900, gain: 0.32 },
+} as const;
+
+export type MusicTrack = keyof typeof MUSIC_TRACKS;
 
 // ---------------------------------------------------------------------------
 // Leaderboard

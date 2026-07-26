@@ -36,8 +36,8 @@ That third reading is what makes the game rather than decorates it. It means:
 > If you'd rather have static tile values, `TILE_DECAY.enabled = false` in
 > `src/core/Config.ts` reverts to exactly what you described;
 > `TILE_DECAY.burnout = false` keeps the decay but stops tiles turning hostile;
-> and `refreshBurnedOnReentry`, `maxUpFraction` and `interval` tune how
-> forgiving the rot is without changing the idea.
+> and `resetOnLeave`, `maxUpFraction` and `interval` tune how forgiving the rot
+> is without changing the idea.
 
 ---
 
@@ -164,10 +164,32 @@ a floor unplayable within seconds:
 - **A hazard ceiling.** At most ~45% of a floor may be UP tiles at once. Past
   that, burnouts go SPENT instead — dead weight rather than punishment. Decay
   takes away opportunities; it does not stack up damage.
-- **Burned tiles refresh on re-entry.** Changing level restores every
-  burned-out tile on the floor you arrive at to a fresh number. Without this,
-  decay is a one-way ratchet and a single bad bounce compounds into a spiral
-  with no way out.
+- **Leaving a floor resets it.** Up or down, the floor you arrive at has every
+  number restored to a fresh value on a fresh clock, and anything that burned
+  out is a number again. Without this, decay is a one-way ratchet and a single
+  bad bounce compounds into a spiral with no way out.
+
+  The guard that stops this being an exploit is that **tiles you scored stay
+  spent**. A floor's harvestable total only ever falls, so bouncing down and
+  straight back up — which costs nothing in multiplier terms — cannot farm one.
+  What it *can* do is rescue a floor whose numbers you were about to lose, and
+  that is a legitimate tactic with a real cost in bounces and clock.
+
+Two smaller properties matter more than they look:
+
+- **Each tile has its own countdown clock**, both in phase and in rate
+  (`intervalJitter`). Jittering only the first tick is not enough — every tile
+  then advances by exactly the same amount forever, so whatever clusters the
+  first tick creates are locked in for the whole run and the floor visibly
+  flashes in waves. Per-tile rates let those clusters drift apart on their own.
+- **Spawn values keep a spread** (`minSpread`). The depth ramp raises the low
+  end of the spawn range, and left uncapped it climbed into the high end: by
+  depth 9 a board was two values wide and by depth 10 it was literally all
+  nines. A board of identical numbers has nothing to choose between, which
+  throws away the decision the player makes on every bounce. Values are also
+  dealt from a shuffled bag rather than rolled independently, because at
+  25–100 tiles independent rolls clump enough to read as "they're all the
+  same" even when the draw is fair.
 
 Nothing is hidden by a fog of war or a face-down state — the tiles are honest.
 The uncertainty comes from the camera: looking straight down through a limited
@@ -183,9 +205,9 @@ smaller targets, tighter execution. Difficulty ramps without a difficulty knob.
 
 - **Descending** dissolves the current floor tile-by-tile in a radial wave from
   the down tile, revealing the next floor, and increments the multiplier.
-- **Ascending** returns you to the floor you left, aged — but with its
-  burned-out tiles restored to numbers. Getting knocked up is a multiplier loss
-  and lost time, not a dead board.
+- **Ascending** returns you to the floor you left with its countdown reset —
+  same layout, same spent tiles, fresh numbers. Getting knocked up is a
+  multiplier loss and lost time, not a dead board.
 - The grid is bounded. Steering past the edge is softly clamped rather than
   killing you — there is no fail state except the clock.
 
@@ -276,8 +298,24 @@ bed layers up as you descend.
 
 - **SFX**: bounce thump, charge whirr, perfect chime, score blip, descend sweep,
   ascend buzz, burnout crackle, clock tick
-- **Music**: generative pentatonic bed; parts unlock with depth; tempo and
-  filter respond to the clock
+- **Music**: three pieces sharing one scheduler and one set of voices — a
+  track is a pattern function plus a tempo, a filter cutoff and a gain.
+  - *Match*: generative pentatonic bed; parts unlock with depth; tempo and
+    filter respond to the clock
+  - *Title*: upbeat and groovy — four-on-the-floor kick, a synthesised backbeat
+    clap, and a bass that plays between the beats rather than on them, which is
+    what a groove actually is. Chord stabs are root-fifth-octave with no third,
+    so one voicing sits correctly on both the major and minor chords in the
+    progression without the pattern needing to know which it is on.
+  - *Post-run*: chill — long pads, a sparse melody whose 12-note phrase is
+    coprime with the four-bar chord loop so it takes four loops to repeat, and
+    one soft kick a bar as a pulse rather than a beat. It plays under a screen
+    people are reading, so nothing in it competes.
+
+  The title track is requested before any input exists, which no browser will
+  allow to sound. The engine remembers the request and starts it from the
+  autoplay unlock, so the menu comes alive on the first keypress rather than
+  staying silent until someone presses Play.
 
 ## 11. Technology
 

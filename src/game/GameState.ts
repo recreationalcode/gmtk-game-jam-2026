@@ -66,7 +66,6 @@ export class GameState {
 
   /** Every floor we have generated, indexed by depth. Floors persist. */
   private readonly floors: Floor[] = [];
-  private readonly leftFloorAt: number[] = [];
 
   depth = 0;
   score = 0;
@@ -153,7 +152,6 @@ export class GameState {
   start(seed = randomSeed()): void {
     this.rand = new Rand(seed);
     this.floors.length = 0;
-    this.leftFloorAt.length = 0;
     this.depth = 0;
     this.score = 0;
     this.multiplier = SCORE.minMultiplier;
@@ -333,7 +331,6 @@ export class GameState {
 
   private descend(x: number, z: number): void {
     const leaving = this.floor;
-    this.leftFloorAt[this.depth] = this.simTime;
 
     // The tile you bounced off takes the whole floor with it — but only after
     // the bounce, so you launch from solid ground and then watch it go.
@@ -369,7 +366,6 @@ export class GameState {
       return;
     }
 
-    this.leftFloorAt[this.depth] = this.simTime;
     this.depth--;
     this.multiplier = Math.max(SCORE.minMultiplier, this.multiplier - SCORE.multiplierPerDepth);
 
@@ -407,25 +403,24 @@ export class GameState {
   // -- floors --------------------------------------------------------------
 
   /**
-   * Floors persist for the whole run rather than being regenerated on arrival.
+   * Floors persist for the whole run rather than being regenerated on arrival —
+   * the layout you learned is the layout you come back to, and the tiles you
+   * spent are still spent.
    *
-   * That matters for balance: if the floor above were rebuilt fresh, an UP tile
-   * would hand you a board full of nines in exchange for one multiplier — often
-   * a net gain, which would invert the entire risk structure. Instead the floor
-   * you return to is the floor you left, aged by exactly how long you were
-   * away. Going up is unambiguously bad, and "the surface has rotted while I
-   * was down here" is a better story anyway.
+   * Their countdowns do not persist. A floor's numbers reset the moment you
+   * leave it, in either direction, so decay is a pressure while you are stood
+   * on a floor rather than permanent damage to the whole run. Without that it
+   * is a ratchet: one bad UP tile drops you onto a board that rotted while you
+   * were away, and the spiral has no bottom.
+   *
+   * The reset is applied here, on arrival, rather than at the moment of
+   * departure — a departing floor is still on screen playing its dissolve, and
+   * rewriting its digits mid-animation is a visible pop. Nothing ages while a
+   * floor is unoccupied, so where the bookkeeping happens is not observable.
    */
   private ensureFloor(depth: number, entryX: number, entryZ: number): void {
     const existing = this.floors[depth];
     if (existing) {
-      // Ageing while away is capped: coming back to a floor should feel like
-      // time passed, not like the floor died without you.
-      const away = Math.min(
-        TILE_DECAY.maxAwaySeconds,
-        this.simTime - (this.leftFloorAt[depth] ?? this.simTime),
-      );
-      if (away > 0) this.catchUpDecay(existing, away);
       // Clear any leftover drop-through state before it becomes active again.
       if (this.dissolving === existing) {
         this.dissolving = null;
@@ -438,35 +433,6 @@ export class GameState {
     const gx = probe.gridX(entryX);
     const gy = probe.gridY(entryZ);
     this.floors[depth] = new Floor(depth, this.rand, gx, gy);
-  }
-
-  /** Apply the decay a floor would have accumulated while we were elsewhere. */
-  private catchUpDecay(floor: Floor, seconds: number): void {
-    if (!TILE_DECAY.enabled) return;
-    let burned = 0;
-    let upCount = floor.countUp();
-    const upCeiling = Math.floor(floor.tiles.length * TILE_DECAY.maxUpFraction);
-
-    for (const tile of floor.tiles) {
-      if (tile.kind !== TileKind.Number) continue;
-      let timer = tile.decayTimer - seconds;
-      while (timer <= 0 && tile.value > 0) {
-        tile.value--;
-        timer += TILE_DECAY.interval;
-        if (tile.value <= 0) {
-          const asHazard = TILE_DECAY.burnout && upCount < upCeiling;
-          tile.kind = asHazard ? TileKind.Up : TileKind.Spent;
-          if (asHazard) upCount++;
-          tile.value = 0;
-          tile.burned = true;
-          burned++;
-          break;
-        }
-      }
-      tile.decayTimer = Math.max(0.05, timer);
-    }
-
-    if (burned > 0) this.events.push({ type: 'burnout', count: burned });
   }
 
   // -- helpers -------------------------------------------------------------
