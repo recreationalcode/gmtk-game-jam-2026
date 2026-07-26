@@ -46,7 +46,8 @@ const STEP = 1 / SIM.hz;
 export class App {
   /** Public for the dev-only inspection handle installed by main.ts. */
   readonly game = new GameState();
-  private readonly audio = new AudioEngine();
+  /** Public for the dev handle and the headless music test. */
+  readonly audio = new AudioEngine();
   private readonly leaderboard = new Leaderboard();
 
   /** Public for the dev-only inspection handle installed by main.ts. */
@@ -55,7 +56,8 @@ export class App {
   /** Public for the dev-only inspection handle installed by main.ts. */
   readonly rig: PlayerRig;
   private readonly hud: HUD;
-  private readonly screens: Screens;
+  /** Public for the dev handle and the headless tests. */
+  readonly screens: Screens;
   private readonly stats: Stats;
   /** Public for the dev-only inspection handle installed by main.ts. */
   readonly notifications: Notifications;
@@ -158,12 +160,11 @@ export class App {
       if (document.hidden && this.phase === 'playing') this.pause();
     });
 
-    this.setAccent(0);
-    this.game.prepareIdle();
-    this.screens.setPersonalBest(this.leaderboard.personalBest);
-    this.screens.show('title');
-    this.hud.setVisible(false);
-    this.guides.setVisible(false);
+    // Boot straight into the same state Quit lands on, rather than a
+    // hand-rolled copy of it. The copy had already drifted: it never asked for
+    // the title music, so the menu was silent on first load and scored on
+    // return from a run.
+    this.toTitle();
     installFavicon();
   }
 
@@ -196,13 +197,16 @@ export class App {
     this.screens.show(null);
     this.input.setEnabled(true);
     this.phase = 'playing';
-    this.audio.startMusic();
+    this.audio.startMusic('game');
   }
 
   private toTitle(): void {
     this.phase = 'title';
     this.notifications.clear();
-    this.audio.stopMusic();
+    // The menu gets its own track rather than silence. It may not actually
+    // sound until the first input — no browser starts an AudioContext without
+    // a gesture — but the engine remembers the request and picks it up there.
+    this.audio.startMusic('title');
     this.input.setEnabled(false);
     this.hud.setVisible(false);
     this.guides.setVisible(false);
@@ -234,7 +238,7 @@ export class App {
     this.accumulator = 0;
     this.lastFrame = performance.now() / 1000;
     this.screens.show(null);
-    this.audio.startMusic();
+    this.audio.startMusic('game');
   }
 
   private onResize(): void {
@@ -561,6 +565,7 @@ export class App {
     this.phase = 'over';
     this.notifications.clear();
     this.audio.gameOver();
+    this.audio.startMusic('over');
     this.input.setEnabled(false);
     this.hud.setVisible(false);
     this.guides.setVisible(false);

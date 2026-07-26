@@ -1,4 +1,4 @@
-import { AUDIO } from './Config';
+import { AUDIO, MUSIC_TRACKS, type MusicTrack } from './Config';
 import { clamp, clamp01, lerp } from './MathUtil';
 
 /**
@@ -29,11 +29,26 @@ export class AudioEngine {
   private depth = 0;
   private intensity = 0;
   private musicEnabled = true;
+  private track: MusicTrack = 'game';
+  /**
+   * Music has been asked for but the AudioContext may not exist yet.
+   *
+   * The title screen wants music before anyone has touched anything, and no
+   * browser will start an AudioContext without a gesture. Remembering the
+   * request lets `unlock()` start the track at the first legal moment rather
+   * than leaving the menu silent until the player happens to press play.
+   */
+  private wantMusic = false;
 
   muted = false;
 
   get ready(): boolean {
     return this.ctx !== null && this.ctx.state === 'running';
+  }
+
+  /** Which piece is playing. Read by the headless music test. */
+  get currentTrack(): MusicTrack | null {
+    return this.schedulerId === null ? null : this.track;
   }
 
   /**
@@ -49,6 +64,7 @@ export class AudioEngine {
         /* Autoplay still blocked; the next gesture will try again. */
       }
     }
+    if (this.wantMusic && this.schedulerId === null) this.startMusic(this.track);
   }
 
   private build(): void {
@@ -400,15 +416,35 @@ export class AudioEngine {
 
   // -- generative music ----------------------------------------------------
 
-  startMusic(): void {
-    if (!this.ctx || !this.musicBus || this.schedulerId !== null || !this.musicEnabled) return;
-    this.musicBus.gain.setTargetAtTime(AUDIO.musicGain, this.ctx.currentTime, 0.6);
-    this.nextNoteTime = this.ctx.currentTime + 0.1;
+  startMusic(track: MusicTrack = 'game'): void {
+    this.wantMusic = true;
+    const changed = track !== this.track;
+    this.track = track;
+
+    const ctx = this.ctx;
+    if (!ctx || !this.musicBus || !this.musicEnabled) return;
+
+    // Gain and tone are per track, and always ramped: switching from the title
+    // groove to the match should feel like a crossfade, not an edit.
+    const cfg = MUSIC_TRACKS[track];
+    this.musicBus.gain.setTargetAtTime(cfg.gain, ctx.currentTime, 0.6);
+    this.musicFilter?.frequency.setTargetAtTime(cfg.cutoff, ctx.currentTime, 0.4);
+
+    if (this.schedulerId !== null) {
+      // Already running. Restart the pattern from the top of the loop, but let
+      // the note clock run on — rewinding it would double-trigger whatever is
+      // already queued on the audio thread.
+      if (changed) this.step = 0;
+      return;
+    }
+
+    this.nextNoteTime = ctx.currentTime + 0.1;
     this.step = 0;
     this.schedulerId = window.setInterval(() => this.scheduleAhead(), 25);
   }
 
   stopMusic(): void {
+    this.wantMusic = false;
     if (this.schedulerId !== null) {
       clearInterval(this.schedulerId);
       this.schedulerId = null;
@@ -425,6 +461,9 @@ export class AudioEngine {
   setMusicState(depth: number, intensity: number, timeScale = 1): void {
     this.depth = depth;
     this.intensity = clamp01(intensity);
+    // Only the match track reacts to game state; the menu tracks hold their
+    // own tone so they do not inherit whatever the last run ended on.
+    if (this.track !== 'game') return;
     if (this.musicFilter && this.ctx) {
       const open = lerp(1400, 5200, this.intensity) + Math.min(depth, 6) * 180;
       // Dipping the filter as time dilates is the classic slow-motion cue, and
@@ -435,7 +474,10 @@ export class AudioEngine {
   }
 
   private get secondsPerStep(): number {
-    const bpm = lerp(AUDIO.bpmStart, AUDIO.bpmEnd, this.intensity);
+    const bpm =
+      this.track === 'game'
+        ? lerp(AUDIO.bpmStart, AUDIO.bpmEnd, this.intensity)
+        : MUSIC_TRACKS[this.track].bpm;
     return 60 / bpm / 4; // sixteenth notes
   }
 
@@ -457,6 +499,12 @@ export class AudioEngine {
   }
 
   private scheduleStep(step: number, when: number): void {
+    if (this.track === 'title') return this.stepTitle(step, when);
+    if (this.track === 'over') return this.stepChill(step, when);
+    return this.stepMatch(step, when);
+  }
+
+  private stepMatch(step: number, when: number): void {
     const bar = Math.floor(step / 16);
     const beat = step % 16;
     const root = CHORD_ROOTS[bar % CHORD_ROOTS.length]!;
@@ -491,6 +539,80 @@ export class AudioEngine {
     // Endgame: every off-beat gets a driving stab.
     if (this.intensity > 0.5 && beat % 4 === 2) {
       this.musicHat(when, 0.12 * this.intensity);
+    }
+  }
+
+  /**
+   * Title music: upbeat and groovy.
+   *
+   * Groove is a pattern property, not a sound property — the voices here are
+   * the same ones the match uses. What makes it move is the four-on-the-floor
+   * kick, the backbeat clap, and a bass that plays *between* the beats rather
+   * than on them.
+   */
+  private stepTitle(step: number, when: number): void {
+    const bar = Math.floor(step / 16);
+    const beat = step % 16;
+    const root = TITLE_ROOTS[bar % TITLE_ROOTS.length]!;
+
+    if (beat % 4 === 0) this.musicKick(when, beat === 0 ? 0.62 : 0.46);
+
+    // The backbeat is the single thing that makes a loop read as groovy.
+    if (beat === 4 || beat === 12) this.musicClap(when, 0.19);
+
+    // Offbeat hats, accented every other one so the eighths swing.
+    if (beat % 2 === 1) this.musicHat(when, beat % 4 === 3 ? 0.085 : 0.05);
+
+    if (TITLE_BASS.includes(beat)) {
+      // Octave jumps on the syncopated notes — the walking part of the walk.
+      const octave = beat === 6 || beat === 14 ? 12 : 0;
+      this.musicBass(AUDIO.rootMidi - 24 + root + octave, when, this.secondsPerStep * 1.7);
+    }
+
+    if (beat === 2 || beat === 10) {
+      this.musicStab(AUDIO.rootMidi - 12 + root, when, this.secondsPerStep * 2.4);
+    }
+
+    if (beat % 2 === 0) {
+      const idx = TITLE_ARP[(step / 2) % TITLE_ARP.length]!;
+      this.musicArp(AUDIO.rootMidi + 12 + root + scaleStep(idx), when);
+    }
+  }
+
+  /**
+   * Post-run music: chill.
+   *
+   * Almost the inverse of the title track — no backbeat, one soft kick a bar
+   * as a pulse rather than a beat, and a melody sparse enough to leave room.
+   * It plays under a screen people are reading, so nothing here competes.
+   */
+  private stepChill(step: number, when: number): void {
+    const bar = Math.floor(step / 16);
+    const beat = step % 16;
+    const root = CHILL_ROOTS[bar % CHILL_ROOTS.length]!;
+
+    if (beat === 0) {
+      this.musicPad(AUDIO.rootMidi - 12 + root, when, this.secondsPerStep * 16);
+      this.musicBass(AUDIO.rootMidi - 24 + root, when, this.secondsPerStep * 7);
+      this.musicKick(when, 0.2);
+    }
+
+    if (beat === 8) {
+      this.musicBass(AUDIO.rootMidi - 24 + root + 7, when, this.secondsPerStep * 6);
+      this.musicHat(when, 0.026);
+    }
+
+    // Three notes a bar, walking through the melody rather than repeating on
+    // the bar — a four-bar loop that never plays the same bar twice.
+    const slot = CHILL_NOTE_BEATS.indexOf(beat);
+    if (slot >= 0) {
+      const n = bar * CHILL_NOTE_BEATS.length + slot;
+      const idx = CHILL_MELODY[n % CHILL_MELODY.length]!;
+      this.musicPluck(
+        AUDIO.rootMidi + 12 + root + scaleStep(idx),
+        when,
+        this.secondsPerStep * 6,
+      );
     }
   }
 
@@ -583,6 +705,88 @@ export class AudioEngine {
     }
   }
 
+  /**
+   * A clap, not a snare. Three tightly spaced noise bursts through a bandpass:
+   * one burst reads as a snare hit, the flam is what makes it a clap.
+   */
+  private musicClap(when: number, gainPeak: number): void {
+    const ctx = this.ctx;
+    const bus = this.musicBus;
+    if (!ctx || !bus || !this.noiseBuffer) return;
+
+    for (const [offset, level, decay] of [
+      [0, 0.55, 0.04],
+      [0.011, 0.8, 0.04],
+      [0.023, 1, 0.17],
+    ] as const) {
+      const src = ctx.createBufferSource();
+      src.buffer = this.noiseBuffer;
+      src.loop = true;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.value = 1650;
+      filter.Q.value = 1.1;
+      const gain = ctx.createGain();
+      const t = when + offset;
+      gain.gain.setValueAtTime(gainPeak * level, t);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+      src.connect(filter).connect(gain).connect(bus);
+      src.start(t, Math.random());
+      src.stop(t + decay + 0.03);
+    }
+  }
+
+  /**
+   * Chord stab: root, fifth, octave.
+   *
+   * Deliberately no third. The title progression mixes major and minor chords,
+   * and a stab without a third sits correctly on both — so the pattern never
+   * has to know which chord it is on, and the arp supplies the colour.
+   */
+  private musicStab(midi: number, when: number, duration: number): void {
+    const ctx = this.ctx;
+    const bus = this.musicBus;
+    if (!ctx || !bus) return;
+    for (const interval of [0, 7, 12]) {
+      const osc = ctx.createOscillator();
+      const filter = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.value = midiToFreq(midi + interval);
+      osc.detune.value = (Math.random() - 0.5) * 9;
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(2800, when);
+      filter.frequency.exponentialRampToValueAtTime(700, when + duration);
+      gain.gain.setValueAtTime(0.0001, when);
+      gain.gain.exponentialRampToValueAtTime(0.05, when + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.0001, when + duration);
+      osc.connect(filter).connect(gain).connect(bus);
+      osc.start(when);
+      osc.stop(when + duration + 0.05);
+    }
+  }
+
+  /** Soft, long-decaying melody note for the chill track. */
+  private musicPluck(midi: number, when: number, duration: number): void {
+    const ctx = this.ctx;
+    const bus = this.musicBus;
+    if (!ctx || !bus) return;
+    const osc = ctx.createOscillator();
+    const filter = ctx.createBiquadFilter();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = midiToFreq(midi);
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(2400, when);
+    filter.frequency.exponentialRampToValueAtTime(600, when + duration);
+    gain.gain.setValueAtTime(0.0001, when);
+    gain.gain.exponentialRampToValueAtTime(0.09, when + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, when + duration);
+    osc.connect(filter).connect(gain).connect(bus);
+    osc.start(when);
+    osc.stop(when + duration + 0.05);
+  }
+
   dispose(): void {
     this.stopMusic();
     void this.ctx?.close();
@@ -592,6 +796,30 @@ export class AudioEngine {
 
 /** i · VI · VII · i in A minor — four chords, no surprises, always works. */
 const CHORD_ROOTS = [0, 8, 10, 0];
+
+/** Title: i · VI · III · VII (Am · F · C · G). Minor key, but it lifts. */
+const TITLE_ROOTS = [0, 8, 3, 10];
+
+/**
+ * Sixteenths the title bass plays on. Six notes across sixteen, and only two of
+ * them on a beat — playing between the beats is what a groove *is*.
+ */
+const TITLE_BASS = [0, 3, 6, 8, 11, 14];
+
+/** Pentatonic degrees for the title arp, as a phrase rather than a run. */
+const TITLE_ARP = [0, 2, 4, 2, 3, 1, 4, 2];
+
+/** Post-run: i · iv · VI · III (Am · Dm · F · C). Resolves rather than drives. */
+const CHILL_ROOTS = [0, 5, 8, 3];
+
+/** Sixteenths the chill melody lands on — off the bar line, never crowded. */
+const CHILL_NOTE_BEATS = [4, 7, 13];
+
+/**
+ * Twelve degrees over three notes a bar: coprime with the four-bar chord loop,
+ * so the melody takes four full loops to repeat itself against the harmony.
+ */
+const CHILL_MELODY = [0, 2, 4, 3, 5, 2, 6, 4, 1, 3, 5, 2];
 
 function midiToFreq(midi: number): number {
   return 440 * Math.pow(2, (midi - 69) / 12);
