@@ -84,79 +84,54 @@ export default async function handler(request: Request): Promise<Response> {
 // -- read --------------------------------------------------------------------
 
 /**
- * The exact read path could not be verified when this was written (the build
- * environment blocks the service), so both candidate shapes are tried here
- * rather than in the client. Server-side is the right place for that
- * uncertainty: it is one deployment to fix rather than a rebuilt game, and the
- * client gets a single normalised shape either way.
+ * The board is a nested resource: `/api/leaderboards/{id}/entries`.
  *
- * Order is evidence, not guesswork. A live deployment reported
- * `/api/entries` → 404 and `/api/leaderboards/<id>/entries` → 500: a 404 means
- * no such route, while a 500 means the route matched and then failed. So the
- * nested shape is the one that exists, and it goes first. The flat one stays
- * until a real 200 confirms which to pin.
+ * This was originally a guess between two candidate shapes, reconstructed from
+ * their client libraries rather than executed, because the build environment
+ * blocks the service. A live deployment settled it: the flat `/api/entries`
+ * returns 404 with an empty body (no such route), while the nested path reached
+ * a real handler — it named itself `LeaderboardGetEntries` in an error. The
+ * dead candidate is gone, so a failure is now one round trip and one story.
  *
- * The winning path comes back in `x-upstream-path`, so the guess can be
- * confirmed from the browser's network tab and then pinned.
+ * The path still comes back in `x-upstream-path`, which is what confirmed it.
  */
 async function readBoard(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
   const url = new URL(request.url);
   const limit = clampInt(url.searchParams.get('limit'), 1, MAX_LIMIT, 20);
-  const id = encodeURIComponent(env.leaderboardId);
-
-  const candidates = [
-    `${env.baseUrl}/api/leaderboards/${id}/entries?limit=${limit}`,
-    `${env.baseUrl}/api/entries?leaderboardId=${id}&limit=${limit}`,
-  ];
+  const target = `${env.baseUrl}/api/leaderboards/${encodeURIComponent(env.leaderboardId)}/entries?limit=${limit}`;
+  const path = new URL(target).pathname;
 
   const attempts: Attempt[] = [];
-  for (const candidate of candidates) {
-    const path = new URL(candidate).pathname;
-    let upstream: Response;
-    try {
-      upstream = await fetchUpstream(candidate, {
-        method: 'GET',
-        headers: { 'x-api-key': env.apiKey, accept: 'application/json' },
-      });
-    } catch (err) {
-      attempts.push({ path, status: null, detail: describeError(err) });
-      continue;
+  try {
+    const upstream = await fetchUpstream(target, {
+      method: 'GET',
+      headers: { 'x-api-key': env.apiKey, accept: 'application/json' },
+    });
+
+    if (upstream.ok) {
+      const payload: unknown = await upstream.json().catch(() => null);
+      return json(
+        { entries: normaliseEntries(payload, limit), source: 'simpleboards' },
+        200,
+        // No caching. A player refreshes the board the instant they submit, and
+        // serving them a five-second-old copy without their own score in it looks
+        // exactly like a failed submission. Upstream load is not a jam's problem.
+        { ...cors, 'Cache-Control': 'no-store', 'x-upstream-path': path },
+      );
     }
 
-    if (!upstream.ok) {
-      // Keep the body. "HTTP 404" on its own cannot tell a wrong URL shape from
-      // a leaderboard id that does not exist, and those have different fixes.
-      // Upstream almost always says which one it is.
-      const detail = await upstream.text().catch(() => '');
-      attempts.push({ path, status: upstream.status, detail: detail.slice(0, 300) });
-      continue;
-    }
-
-    const payload: unknown = await upstream.json().catch(() => null);
-    return json(
-      { entries: normaliseEntries(payload, limit), source: 'simpleboards' },
-      200,
-      // No caching. A player refreshes the board the instant they submit, and
-      // serving them a five-second-old copy without their own score in it looks
-      // exactly like a failed submission. Upstream load is not a jam's problem.
-      {
-        ...cors,
-        'Cache-Control': 'no-store',
-        'x-upstream-path': new URL(candidate).pathname,
-      },
-    );
+    // Keep the body. The status alone cannot tell a wrong id from a wrong key
+    // from a genuine outage, and upstream almost always says which.
+    const detail = await upstream.text().catch(() => '');
+    attempts.push({ path, status: upstream.status, detail: detail.slice(0, 300) });
+  } catch (err) {
+    attempts.push({ path, status: null, detail: describeError(err) });
   }
 
-  // Every candidate failed. Report all of them, with what upstream actually
-  // said, because a 502 whose only detail is "HTTP 404" is not something anyone
-  // can act on — and the request shape here was reconstructed from client
-  // libraries rather than executed, so a wrong guess is a live possibility.
   return json(
     {
-      error: `Upstream read failed: ${attempts
-        .map((a) => `${a.path} → ${a.status ?? a.detail}`)
-        .join(', ')}`,
-      hint: diagnose(attempts),
+      error: `Upstream read failed: ${attempts.map((a) => `${a.path} → ${a.status ?? a.detail}`).join(', ')}`,
+      hint: diagnose(attempts, env),
       attempts,
     },
     502,
@@ -171,10 +146,22 @@ interface Attempt {
   detail: string;
 }
 
+/** Board ids are GUIDs upstream. A name in that slot is a 500, not a 404. */
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** Turn the collected statuses into the thing to go and change. */
-function diagnose(attempts: Attempt[]): string {
+function diagnose(attempts: Attempt[], env: Env): string {
   const statuses = attempts.map((a) => a.status);
   const all = (p: (s: number | null) => boolean) => statuses.length > 0 && statuses.every(p);
+
+  // Checked before anything else, and deliberately before the 5xx branch. This
+  // failure arrives as a 500 from upstream, which otherwise reads as "their
+  // problem, wait it out" when it is entirely ours: their API binds the path
+  // segment to a System.Guid, so a human-readable board name fails to convert
+  // and takes the handler down with it.
+  if (!GUID.test(env.leaderboardId) && statuses.some((s) => s !== null && s >= 400)) {
+    return `SIMPLEBOARDS_LEADERBOARD_ID is "${env.leaderboardId}", which is a name rather than an id. Upstream wants the board's GUID — copy it from the simpleboards dashboard.`;
+  }
 
   if (all((s) => s === null)) {
     return 'No response at all. Check SIMPLEBOARDS_BASE_URL, or upstream is down.';
@@ -220,60 +207,44 @@ async function writeScore(request: Request, env: Env, cors: HeadersInit): Promis
     return json({ error: 'Missing playerId.' }, 400, cors);
   }
 
-  const entry = {
-    playerId,
-    playerDisplayName: name,
-    score,
-    metadata: JSON.stringify(pickMetadata(input.metadata)),
-  };
-  const id = encodeURIComponent(env.leaderboardId);
+  // The same nested resource the read uses, and for the same reason: the flat
+  // `/api/entries` does not exist. The board is in the path, so the body does
+  // not repeat it.
+  const target = `${env.baseUrl}/api/leaderboards/${encodeURIComponent(env.leaderboardId)}/entries`;
+  const path = new URL(target).pathname;
 
-  // Same two shapes as the read, same order, for the same reason: writing to
-  // the flat `/api/entries` was never verified either, and the read proved that
-  // route does not exist. The nested form carries the board in the path, so it
-  // does not repeat it in the body.
-  const candidates = [
-    { url: `${env.baseUrl}/api/leaderboards/${id}/entries`, body: entry },
-    { url: `${env.baseUrl}/api/entries`, body: { leaderboardId: env.leaderboardId, ...entry } },
-  ];
+  const upstream = await fetchUpstream(target, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': env.apiKey,
+      accept: 'application/json',
+    },
+    body: JSON.stringify({
+      playerId,
+      playerDisplayName: name,
+      score,
+      metadata: JSON.stringify(pickMetadata(input.metadata)),
+    }),
+  });
 
-  const attempts: Attempt[] = [];
-  for (const candidate of candidates) {
-    const path = new URL(candidate.url).pathname;
-    const upstream = await fetchUpstream(candidate.url, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': env.apiKey,
-        accept: 'application/json',
-      },
-      body: JSON.stringify(candidate.body),
-    });
-
-    if (upstream.ok) {
-      return json({ ok: true, name, score }, 200, { ...cors, 'x-upstream-path': path });
-    }
-
-    const detail = await upstream.text().catch(() => '');
-    attempts.push({ path, status: upstream.status, detail: detail.slice(0, 300) });
-
-    // Only a 404 is safe to retry. It means the route does not exist, so
-    // nothing can have been written. Any other status means upstream matched
-    // the route and made up its own mind — retrying a 500 risks writing the
-    // same run onto the board twice, which is worse than not writing it once.
-    if (upstream.status !== 404) break;
+  if (upstream.ok) {
+    return json({ ok: true, name, score }, 200, { ...cors, 'x-upstream-path': path });
   }
 
-  const worst = attempts[attempts.length - 1]!;
+  // Never retried. Upstream has matched the route and made its own decision, so
+  // a second attempt could put the same run on the board twice — a worse
+  // outcome than a score that failed to submit, which the client already
+  // handles by keeping it locally.
+  const detail = await upstream.text().catch(() => '');
+  const attempts: Attempt[] = [{ path, status: upstream.status, detail: detail.slice(0, 300) }];
   return json(
     {
-      error: `Upstream rejected the score: ${attempts
-        .map((a) => `${a.path} → ${a.status}`)
-        .join(', ')}`,
-      hint: diagnose(attempts),
+      error: `Upstream rejected the score: ${path} → ${upstream.status}`,
+      hint: diagnose(attempts, env),
       attempts,
     },
-    worst.status !== null && worst.status >= 500 ? 502 : 400,
+    upstream.status >= 500 ? 502 : 400,
     cors,
   );
 }

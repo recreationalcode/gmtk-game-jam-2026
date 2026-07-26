@@ -26,7 +26,9 @@ const EXECUTABLE =
   process.env.SMOKE_CHROMIUM ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 
 process.env.SIMPLEBOARDS_API_KEY = 'sb_e2e_secret';
-process.env.SIMPLEBOARDS_LEADERBOARD_ID = 'e2e-board';
+// A GUID, because upstream binds the path segment to one. A name here would
+// pass this test while failing against the real service.
+process.env.SIMPLEBOARDS_LEADERBOARD_ID = 'e2e0b0a4-d1c2-4e3f-9a8b-7c6d5e4f3a2b';
 process.env.SIMPLEBOARDS_BASE_URL = UPSTREAM;
 delete process.env.LEADERBOARD_ALLOWED_ORIGINS;
 
@@ -42,8 +44,13 @@ globalThis.fetch = async (url, init = {}) => {
 
   upstreamCalls.push({ href, method: init.method ?? 'GET', body: init.body });
 
+  // The real shape: entries are a nested resource under the board's GUID.
+  // Anything else 404s, exactly as the live service does, so this test fails if
+  // the proxy ever goes back to guessing at paths.
+  const expected = `/api/leaderboards/${process.env.SIMPLEBOARDS_LEADERBOARD_ID}/entries`;
+  if (new URL(href).pathname !== expected) return new Response('nope', { status: 404 });
+
   if ((init.method ?? 'GET') === 'GET') {
-    if (!href.includes('/api/entries')) return new Response('nope', { status: 404 });
     const sorted = [...board]
       .sort((a, b) => b.score - a.score)
       .map((e, i) => ({ ...e, rank: i + 1 }));

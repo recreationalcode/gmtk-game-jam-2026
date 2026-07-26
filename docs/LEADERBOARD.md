@@ -38,13 +38,32 @@ In the Vercel project, under **Settings → Environment Variables**:
 | Variable | Required | Notes |
 |---|---|---|
 | `SIMPLEBOARDS_API_KEY` | yes | The secret. Never sent to a client. |
-| `SIMPLEBOARDS_LEADERBOARD_ID` | yes | |
+| `SIMPLEBOARDS_LEADERBOARD_ID` | yes | The board's **GUID**, not its name. See below. |
 | `SIMPLEBOARDS_BASE_URL` | no | Defaults to `https://api.simpleboards.dev` |
 | `LEADERBOARD_ALLOWED_ORIGINS` | no | Comma-separated. Defaults to `*`. |
 | `LEADERBOARD_MAX_SCORE` | no | Plausibility ceiling, defaults to `250000` |
 
 Redeploy after adding them — Vercel does not apply new variables to an existing
 deployment.
+
+#### The leaderboard id is a GUID
+
+`SIMPLEBOARDS_LEADERBOARD_ID` must be the board's GUID, copied from the
+simpleboards dashboard, not the board's name. Their API binds the path segment
+straight to a `System.Guid`, so a name does not come back as a tidy "not found":
+the conversion throws and the whole endpoint returns a 500 that looks like an
+outage on their side.
+
+Setting it to `pogodrop` produced exactly this, which is worth recognising:
+
+```
+Cannot convert input parameter 'id' to type 'System.Guid' from type
+'System.String'. Error: ... ''p' is an invalid start of a value'
+```
+
+The `'p'` is the first character of the name. The proxy now checks the id's
+shape when a request fails and says so in the `hint` field rather than letting
+it read as an upstream problem.
 
 If you want to restrict origins, the value for an itch.io HTML5 game is:
 
@@ -120,7 +139,7 @@ best run on jam day is worse than letting an implausible one through.
 Set these instead, and leave `VITE_LEADERBOARD_PROXY` unset:
 
 ```dotenv
-VITE_SIMPLEBOARDS_LEADERBOARD_ID=your-leaderboard-id
+VITE_SIMPLEBOARDS_LEADERBOARD_ID=00000000-0000-0000-0000-000000000000
 VITE_SIMPLEBOARDS_API_KEY=your-api-key
 ```
 
@@ -195,6 +214,8 @@ message rather than a bare status code.
 | Board loads but submit fails with a CORS error | `LEADERBOARD_ALLOWED_ORIGINS` is set and does not include the origin the game is actually served from — check the browser console, it names it |
 | "Request timed out" | Service unreachable; the client timeout is `LEADERBOARD.timeoutMs` in `src/core/Config.ts` |
 | Submits fine, board stays empty | The write path is right and the read path is not — check `x-upstream-path` |
+| A 502 mentioning `System.Guid` | `SIMPLEBOARDS_LEADERBOARD_ID` is a board name; it needs the GUID |
+| A 502 from the proxy generally | The proxy is deployed and configured (that would be a 503) and upstream refused. `curl` the proxy and read `hint` and `attempts[].detail` — the game screen only shows the summary line |
 
 Nothing here blocks shipping. If the leaderboard is broken on jam day the game
 still plays, still scores, and still keeps a local board.
