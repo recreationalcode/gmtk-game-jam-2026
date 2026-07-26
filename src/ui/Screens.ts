@@ -89,7 +89,7 @@ export class Screens {
     el.innerHTML = `
       <div class="panel">
         <h1 class="title">POGO<br /><em>DROP</em></h1>
-        <p class="tagline">Bounce down before the clock runs out</p>
+        <p class="tagline">Can't stop, <i>will</i> drop</p>
         <div class="button-row">
           <button data-act="play" data-icon="play">Play</button>
         </div>
@@ -99,10 +99,7 @@ export class Screens {
           <button class="ghost" data-act="sound" data-icon="soundOn">Sound: on</button>
         </div>
         <p class="notice" data-role="best"></p>
-        <p class="notice">
-          GMTK Game Jam 2026 &middot; theme <b>Count Down</b>. Everything you see and hear is
-          generated in code &mdash; no images, no fonts, no audio files.
-        </p>
+        <p class="notice credit">GMTK Game Jam 2026</p>
       </div>
     `;
     applyIcons(el);
@@ -303,7 +300,7 @@ export class Screens {
     const el = this.makeScreen('over');
     el.innerHTML = `
       <div class="panel">
-        <h2>Time up</h2>
+        <h2 class="score-heading">Your score</h2>
         <div class="final-score" data-role="score">0</div>
         <div class="stat-grid" data-role="stats"></div>
 

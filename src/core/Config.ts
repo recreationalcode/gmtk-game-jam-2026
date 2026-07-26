@@ -521,16 +521,28 @@ export const RETICLE = {
  * at all and a first-timer's score is not competitive anyway.
  */
 export const NOTICE_TIME = {
-  /** Slowest the simulation runs while a notice is being read. */
-  slowScale: 0.35,
+  /**
+   * Slowest the simulation runs while a notice is being read.
+   *
+   * Near-stopped rather than merely slowed. Reading a sentence takes a couple
+   * of seconds of *attention*, and at a third speed that was still most of a
+   * bounce — so the player was choosing between reading the tip and playing the
+   * arc. At a tenth, the whole toast costs well under a second of match clock,
+   * which is what makes it affordable to hold it long enough to actually read.
+   */
+  slowScale: 0.1,
   /**
    * Fraction of the toast's life spent easing *into* slow motion. Stepping the
    * target straight to `slowScale` leaves the damping to absorb the whole jump,
    * which is visibly abrupt on a device that is not hitting 60fps.
    */
   entryFraction: 0.12,
-  /** Fraction of the toast's life held at full slow before easing back up. */
-  holdFraction: 0.45,
+  /**
+   * Fraction of the toast's life held at full slow before easing back up.
+   * Long, because the player can end it early — the ramp back is a fallback for
+   * someone who did not, not the expected path.
+   */
+  holdFraction: 0.72,
   /** How fast the scale chases its target, per second. */
   smoothing: 4.5,
 } as const;

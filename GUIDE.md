@@ -75,6 +75,14 @@ your view of the floor, and a wider view is how you find the way down.
 
 ---
 
+## Tips
+
+The game explains itself as you go. When a tip appears the world slows almost
+to a stop so you can read it without losing the bounce — **click or tap to
+carry on** the moment you are done, or let the bar under it run out.
+
+---
+
 ## The countdown
 
 This is the part that catches people out.

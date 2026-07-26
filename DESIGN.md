@@ -352,6 +352,33 @@ in code — and raw three.js keeps the bundle small, which matters for mobile.
 - Device tiering: DPR clamp, bloom and particle budgets scale down on mobile
 - Builds to a self-contained `dist/` with relative paths, zipped for itch.io
 
+### Tips
+
+Notices sit in the **centre** of the screen and slow the simulation to a tenth
+speed while they are up. Both follow from the same observation: a tip at the
+edge of the screen competes with the play field for attention and loses, and one
+that costs a bounce to read gets skipped. Centred and near-stopped, a full toast
+costs well under a second of match clock, which is what makes it affordable to
+hold one long enough to actually read.
+
+That only works if the player can end it. Every toast carries a **"Click / Tap
+to keep bouncing!"** prompt and a **draining bar** showing when it goes by
+itself — without those, slowing the world is something being done *to* the
+player, with no stated way out and no idea how long it lasts. The press flows
+through to the bounce as normal; taking the input away to pay for the dismissal
+would mean the prompt cost you the thing it invited you to do.
+
+Reading the whole opening notice puts the first bounce 4.4s after Play;
+dismissing it early, 2.0s. The match clock does not start until that first
+landing either way.
+
+Deepening the dilation surfaced a real bug in the hitstop. It was drained
+inside the fixed-step loop, so it was spent in *simulated* time: with a tip up
+it ran at a tenth rate, and a 600ms probe froze the screen for 3.9 seconds
+(measured). Worse, the drain rate depended on the accumulator, so the duration
+was never actually the designed one. A frozen screen is felt in wall time, so
+that is what it is spent in now — 611ms for the same probe.
+
 ## 12. Leaderboard
 
 [simpleboards.dev](https://simpleboards.dev) behind a thin adapter, with a

@@ -114,6 +114,53 @@ const results = {};
 await page.waitForTimeout(2500);
 results.opening = titles(shown);
 
+// --- the toast can be ended early, and says so -----------------------------
+//
+// While one is up the simulation runs at a tenth speed. That has to be
+// escapable on demand, or a tip becomes something done *to* the player: the
+// world goes slow and there is no stated way out. Both halves are checked —
+// the prompt that offers it, and the press that takes it.
+results.dismiss = await (async () => {
+  const before = await page.evaluate(() => ({
+    visible: document.getElementById('notice')?.classList.contains('visible') ?? false,
+    prompt: document.querySelector('.notice-prompt')?.textContent?.trim() ?? '',
+    // The auto-dismiss countdown must actually be counting down.
+    bar: document.querySelector('.notice-timer > i')?.style.width ?? '',
+  }));
+  // How much simulated time a toast actually costs. Measured on `simTime`
+  // rather than the match clock, because the match clock is held until the
+  // first landing — and the opening drop is itself slowed by this very notice,
+  // so the clock reads a flat zero and the assertion would pass vacuously.
+  const clockBefore = await page.evaluate(() => window.pogo.game.simTime);
+  await page.waitForTimeout(500);
+  const ticked = await page.evaluate(
+    () => document.querySelector('.notice-timer > i')?.style.width ?? '',
+  );
+  const slowedSpend = (await page.evaluate(() => window.pogo.game.simTime)) - clockBefore;
+
+  await page.mouse.click(320, 700);
+  await page.waitForTimeout(250);
+  const after = await page.evaluate(() => ({
+    visible: document.getElementById('notice')?.classList.contains('visible') ?? false,
+    busy: window.pogo.notifications.busy,
+  }));
+  // ...and the same window with nothing on screen, for comparison.
+  await page.waitForTimeout(400);
+  const idleBefore = await page.evaluate(() => window.pogo.game.simTime);
+  await page.waitForTimeout(500);
+  const normalSpend = (await page.evaluate(() => window.pogo.game.simTime)) - idleBefore;
+
+  return {
+    before,
+    ticked,
+    after,
+    secondsSpentWhileReading: +slowedSpend.toFixed(3),
+    secondsSpentNormally: +normalSpend.toFixed(3),
+    scale: +(slowedSpend / Math.max(0.0001, normalSpend)).toFixed(3),
+  };
+})();
+await drain();
+
 // Two UP tiles taken on the opening floor should bring the way-down hint
 // forward, well inside the ten-second patience window.
 for (let i = 0; i < 2; i++) {
@@ -143,6 +190,35 @@ await page.evaluate(() => {
   g.player.vy = 0;
   g.descend(0, 0);
 });
+results.hitstopWhileReadingMs = await (async () => {
+  await page.waitForTimeout(400);
+  const up = await page.evaluate(
+    () => document.getElementById('notice')?.classList.contains('visible') ?? false,
+  );
+  if (!up) return null;
+  // Hitstop is a frozen screen, and a frozen screen is felt in real
+  // milliseconds. Spent in *simulated* time it drained at `timeScale × 120`
+  // steps a second, so with a tip up — and tips are up for four and a half
+  // seconds while the player keeps bouncing — a 45ms flourish on a perfect
+  // bounce became nearly half a second of dead screen.
+  //
+  // Probed with a deliberately large value rather than a realistic one. The
+  // old drain ran inside the fixed-step loop, so a frame that arrived with a
+  // full accumulator could spend 20 steps at once and clear a small hitstop
+  // instantly — which makes anything near 110ms a measurement of accumulator
+  // state rather than of the rule. Six hundred milliseconds is well past
+  // anything one frame can absorb.
+  return await page.evaluate(async () => {
+    const g = window.pogo.game;
+    g.hitstop = 0.6;
+    const t0 = performance.now();
+    while (g.hitstop > 0 && performance.now() - t0 < 8000) {
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+    return Math.round(performance.now() - t0);
+  });
+
+})();
 await drain();
 
 // Back up from a real depth: this one actually costs a multiplier.
@@ -201,6 +277,38 @@ if (duplicates.length > 0) failures.push(`repeated within a run: ${duplicates.jo
 // The objective must be the very first thing said, and must name the clock.
 if (results.opening[0] === undefined || !/Score as much as you can/i.test(results.opening[0])) {
   failures.push(`the objective should open the run, got: ${results.opening[0] ?? 'nothing'}`);
+}
+
+{
+  const d = results.dismiss;
+  if (!d.before.visible) failures.push('no toast was up to dismiss');
+  if (!/click to keep bouncing/i.test(d.before.prompt)) {
+    failures.push(`the toast did not offer a way out, said: "${d.before.prompt}"`);
+  }
+  if (d.before.bar === d.ticked) {
+    failures.push(`the auto-dismiss countdown is not moving (stuck at ${d.before.bar})`);
+  }
+  if (d.after.visible) failures.push('clicking did not dismiss the toast');
+  // Half a second of reading must not cost half a second of the match.
+  if (d.scale > 0.2) {
+    failures.push(
+      `the world only slowed to ${d.scale}x while a tip was up — not enough to read against`,
+    );
+  }
+  // ...and it must come back, or a dismissed tip leaves the game in treacle.
+  if (d.secondsSpentNormally < 0.4) {
+    failures.push(`time did not return to full speed after dismissing (${d.secondsSpentNormally}s per 0.5s)`);
+  }
+}
+
+// 110ms of designed freeze, plus a frame or two of scheduling slop. Spent in
+// simulated time this would be ten times longer.
+if (results.hitstopWhileReadingMs === null) {
+  failures.push('no toast was on screen for the hitstop measurement');
+} else if (results.hitstopWhileReadingMs > 1300) {
+  failures.push(
+    `a 600ms hitstop froze the screen for ${results.hitstopWhileReadingMs}ms while a tip was up — it is being spent in simulated time`,
+  );
 }
 
 if (!results.shownFirstRun.some((t) => /Land on the ×2 tile/.test(t))) {

@@ -24,11 +24,12 @@ const TONE_COLOR: Record<Notice['tone'], string> = {
 /**
  * Seconds a toast stays up, and the pause before the next one.
  *
- * Sized against a 60-second match: a burst of five notices at four seconds each
- * would occupy a third of the run with text over the play area. Long enough to
- * read a sentence, short enough that the queue keeps moving.
+ * These are *real* seconds, and the simulation runs at a tenth speed underneath
+ * them, so a full toast costs well under a second of match clock. That is what
+ * makes it affordable to hold one long enough to actually read — and the player
+ * can end it early anyway, which is what the prompt is for.
  */
-const HOLD_SECONDS = 3.4;
+const HOLD_SECONDS = 4.5;
 /** Title-only notices need far less time than ones carrying an explanation. */
 const TERSE_SCALE = 0.5;
 const GAP_SECONDS = 0.25;
@@ -48,6 +49,12 @@ export class Notifications {
   private readonly iconEl: HTMLCanvasElement;
   private readonly titleEl: HTMLElement;
   private readonly bodyEl: HTMLElement;
+  private readonly promptEl: HTMLElement;
+  private readonly timerEl: HTMLElement;
+
+  /** Swaps the prompt between "Click" and "Tap". */
+  touchMode = false;
+  private lastBarWidth = -1;
 
   private readonly queue: Queued[] = [];
   private showing: Notice | null = null;
@@ -78,17 +85,37 @@ export class Notifications {
     this.el.setAttribute('role', 'status');
     this.el.setAttribute('aria-live', 'polite');
     this.el.innerHTML = `
-      <canvas class="notice-icon" width="72" height="72"></canvas>
+      <canvas class="notice-icon" width="128" height="128"></canvas>
       <div class="notice-text">
         <div class="notice-title"></div>
         <div class="notice-body"></div>
+        <div class="notice-prompt"></div>
       </div>
+      <div class="notice-timer"><i></i></div>
     `;
     root.appendChild(this.el);
 
     this.iconEl = this.el.querySelector<HTMLCanvasElement>('.notice-icon')!;
     this.titleEl = this.el.querySelector<HTMLElement>('.notice-title')!;
     this.bodyEl = this.el.querySelector<HTMLElement>('.notice-body')!;
+    this.promptEl = this.el.querySelector<HTMLElement>('.notice-prompt')!;
+    this.timerEl = this.el.querySelector<HTMLElement>('.notice-timer > i')!;
+  }
+
+  /**
+   * End the toast on screen early.
+   *
+   * The player has read it and pressed to carry on; holding them for the rest
+   * of the timer at a tenth speed would turn a helpful tip into a punishment.
+   * The next one still waits out the usual gap, so dismissing a burst does not
+   * flash five notices past in half a second.
+   */
+  dismiss(): void {
+    if (!this.showing) return;
+    this.showing = null;
+    this.hold = 0;
+    this.timer = GAP_SECONDS;
+    this.el.classList.remove('visible');
   }
 
   push(notices: readonly Notice[]): void {
@@ -104,6 +131,13 @@ export class Notifications {
 
     if (this.showing) {
       this.timer -= dt;
+      // The auto-dismiss countdown, drawn as a draining bar. Written only when
+      // it changes by a visible amount rather than every frame.
+      const width = Math.round(clamp01(this.timer / Math.max(0.0001, this.hold)) * 100);
+      if (width !== this.lastBarWidth) {
+        this.lastBarWidth = width;
+        this.timerEl.style.width = `${width}%`;
+      }
       if (this.timer <= 0) {
         this.showing = null;
         this.hold = 0;
@@ -148,6 +182,11 @@ export class Notifications {
     this.titleEl.textContent = notice.title;
     this.bodyEl.textContent = notice.body ?? '';
     this.bodyEl.classList.toggle('hidden', !notice.body);
+    this.promptEl.textContent = this.touchMode
+      ? 'Tap to keep bouncing!'
+      : 'Click to keep bouncing!';
+    this.timerEl.style.width = '100%';
+    this.lastBarWidth = 100;
 
     // Restart the entry animation even if a toast was already on screen.
     this.el.classList.remove('visible');
@@ -161,6 +200,7 @@ export class Notifications {
     this.showing = null;
     this.hold = 0;
     this.timer = 0;
+    this.lastBarWidth = -1;
     this.el.classList.remove('visible');
   }
 }

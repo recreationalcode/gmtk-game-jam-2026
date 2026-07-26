@@ -34,6 +34,10 @@ type AppPhase = 'title' | 'playing' | 'paused' | 'over';
 
 const STEP = 1 / SIM.hz;
 
+/** Best guess at a touch device before any input has arrived. */
+const COARSE_POINTER =
+  typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
+
 /**
  * Wires the simulation to everything that presents it.
  *
@@ -166,6 +170,10 @@ export class App {
 
     this.input.setClockSource(() => this.simClock);
     this.input.onAnyInput.add(() => void this.audio.unlock());
+    // A click, tap or bounce key ends the tip on screen. The press still flows
+    // through to the bounce as normal — taking the input away to pay for the
+    // dismissal would mean the prompt cost you the thing it invited you to do.
+    this.input.onConfirm.add(() => this.notifications.dismiss());
     this.listenForFirstGesture();
     this.input.onPause.add(() => {
       // Escape backs out of the guide or the leaderboard first; only then does
@@ -307,9 +315,16 @@ export class App {
     this.input.update();
 
     if (this.phase === 'playing') {
+      this.game.drainHitstop(dt);
       this.simulate(simDt);
       this.game.drainEvents(this.handleEvent);
-      this.coach.touchMode = this.input.touchDetected;
+      // `touchDetected` only flips once a finger has actually landed on the
+      // canvas, and the first notice fires before that — so a phone was being
+      // told to "click". The media query is the initial guess; a real touch
+      // still wins if the device somehow reports otherwise.
+      const touch = this.input.touchDetected || COARSE_POINTER;
+      this.coach.touchMode = touch;
+      this.notifications.touchMode = touch;
       this.coach.update(simDt, this.game);
       this.notifications.push(this.coach.drain());
     } else if (this.phase === 'title') {

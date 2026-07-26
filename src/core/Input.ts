@@ -68,6 +68,15 @@ export class Input {
 
   /** Callbacks fired on any input at all — used to unlock WebAudio. */
   readonly onAnyInput = new Set<() => void>();
+  /**
+   * Fired on a deliberate "yes, carry on" press: click, tap or a bounce key.
+   *
+   * Separate from `onAnyInput` because that includes steering keys, and
+   * dismissing a tip because the player nudged left is not what the prompt
+   * offered them. Fires on press even on touch, where the bounce itself lands
+   * on release — the acknowledgement should be immediate.
+   */
+  readonly onConfirm = new Set<() => void>();
   /** Fired on pause requests (Esc / P). */
   readonly onPause = new Set<() => void>();
 
@@ -169,6 +178,10 @@ export class Input {
     for (const fn of this.onAnyInput) fn();
   }
 
+  private notifyConfirm(): void {
+    for (const fn of this.onConfirm) fn();
+  }
+
   // -- keyboard ------------------------------------------------------------
 
   private onKeyDown(e: KeyboardEvent): void {
@@ -187,6 +200,7 @@ export class Input {
       e.preventDefault();
     }
     if (BOUNCE_KEYS.has(e.code)) {
+      this.notifyConfirm();
       this.pressBounce();
       e.preventDefault();
     }
@@ -238,6 +252,7 @@ export class Input {
   private onPointerDown(e: PointerEvent): void {
     this.notifyAny();
     if (!this.enabled) return;
+    this.notifyConfirm();
 
     if (e.pointerType === 'touch') {
       this.touchDetected = true;

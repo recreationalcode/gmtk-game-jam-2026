@@ -40,6 +40,11 @@ await page.goto(`${BASE}/?matchSeconds=600&tier=low`, { waitUntil: 'networkidle'
 await page.waitForTimeout(700);
 await page.locator('#screen-title button[data-act="play"]').click();
 await page.waitForTimeout(1200);
+// This test is about floors, not tips, and its waits are in real time. A notice
+// on screen slows the simulation to a tenth, which would leave a freshly
+// generated floor still playing its spawn animation when the probe runs.
+await page.evaluate(() => window.pogo.notifications.clear());
+await page.waitForTimeout(500);
 
 /**
  * Park the rider high above the floor with upward velocity, so the live
@@ -89,7 +94,10 @@ const probe = (label, expectedDepth) =>
 
 const descend = async () => {
   await hover();
-  await page.evaluate(() => window.pogo.game.descend(0, 0));
+  await page.evaluate(() => {
+    window.pogo.game.descend(0, 0);
+    window.pogo.notifications.clear();
+  });
   // Long enough to outlast the dissolve animation, which is when the bug bit.
   await page.waitForTimeout(1100);
   await hover();
@@ -100,6 +108,7 @@ const ascend = async () => {
   await page.evaluate(() => {
     const g = window.pogo.game;
     g.ascend(0, 0, g.floor.tiles[0]);
+    window.pogo.notifications.clear();
   });
   await page.waitForTimeout(1100);
   await hover();

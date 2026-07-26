@@ -197,11 +197,9 @@ export class GameState {
     if (this.phase !== 'playing') return false;
 
     // Hitstop eats the step whole. The clock is deliberately included: freezing
-    // everything is what makes an impact read as an impact.
-    if (this.hitstop > 0) {
-      this.hitstop = Math.max(0, this.hitstop - dt);
-      return false;
-    }
+    // everything is what makes an impact read as an impact. It is drained in
+    // *real* time by `drainHitstop`, not here — see that method.
+    if (this.hitstop > 0) return false;
 
     this.simTime += dt;
     this.shake = Math.max(0, this.shake - this.shake * FEEL.shakeDecay * dt);
@@ -440,6 +438,20 @@ export class GameState {
   }
 
   // -- helpers -------------------------------------------------------------
+
+  /**
+   * Spend hitstop against the wall clock, once per rendered frame.
+   *
+   * Hitstop is a presentation flourish measured in what the player perceives,
+   * so it belongs on real time. Draining it in simulated time meant a notice —
+   * which slows the simulation to a tenth — stretched a descend's 0.11s freeze
+   * into 1.1 real seconds of completely stopped screen. Worse, the multiplier
+   * notice fires on exactly the event that sets that hitstop, so the two
+   * compounded every single time.
+   */
+  drainHitstop(realDt: number): void {
+    if (this.hitstop > 0) this.hitstop = Math.max(0, this.hitstop - realDt);
+  }
 
   addShake(amount: number): void {
     this.shake = clamp(this.shake + amount, 0, 1.6);
