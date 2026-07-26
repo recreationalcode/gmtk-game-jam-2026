@@ -90,6 +90,12 @@ export default async function handler(request: Request): Promise<Response> {
  * uncertainty: it is one deployment to fix rather than a rebuilt game, and the
  * client gets a single normalised shape either way.
  *
+ * Order is evidence, not guesswork. A live deployment reported
+ * `/api/entries` → 404 and `/api/leaderboards/<id>/entries` → 500: a 404 means
+ * no such route, while a 500 means the route matched and then failed. So the
+ * nested shape is the one that exists, and it goes first. The flat one stays
+ * until a real 200 confirms which to pin.
+ *
  * The winning path comes back in `x-upstream-path`, so the guess can be
  * confirmed from the browser's network tab and then pinned.
  */
@@ -99,8 +105,8 @@ async function readBoard(request: Request, env: Env, cors: HeadersInit): Promise
   const id = encodeURIComponent(env.leaderboardId);
 
   const candidates = [
-    `${env.baseUrl}/api/entries?leaderboardId=${id}&limit=${limit}`,
     `${env.baseUrl}/api/leaderboards/${id}/entries?limit=${limit}`,
+    `${env.baseUrl}/api/entries?leaderboardId=${id}&limit=${limit}`,
   ];
 
   const attempts: Attempt[] = [];
@@ -214,32 +220,62 @@ async function writeScore(request: Request, env: Env, cors: HeadersInit): Promis
     return json({ error: 'Missing playerId.' }, 400, cors);
   }
 
-  const upstream = await fetchUpstream(`${env.baseUrl}/api/entries`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': env.apiKey,
-      accept: 'application/json',
-    },
-    body: JSON.stringify({
-      leaderboardId: env.leaderboardId,
-      playerId,
-      playerDisplayName: name,
-      score,
-      metadata: JSON.stringify(pickMetadata(input.metadata)),
-    }),
-  });
+  const entry = {
+    playerId,
+    playerDisplayName: name,
+    score,
+    metadata: JSON.stringify(pickMetadata(input.metadata)),
+  };
+  const id = encodeURIComponent(env.leaderboardId);
 
-  if (!upstream.ok) {
+  // Same two shapes as the read, same order, for the same reason: writing to
+  // the flat `/api/entries` was never verified either, and the read proved that
+  // route does not exist. The nested form carries the board in the path, so it
+  // does not repeat it in the body.
+  const candidates = [
+    { url: `${env.baseUrl}/api/leaderboards/${id}/entries`, body: entry },
+    { url: `${env.baseUrl}/api/entries`, body: { leaderboardId: env.leaderboardId, ...entry } },
+  ];
+
+  const attempts: Attempt[] = [];
+  for (const candidate of candidates) {
+    const path = new URL(candidate.url).pathname;
+    const upstream = await fetchUpstream(candidate.url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': env.apiKey,
+        accept: 'application/json',
+      },
+      body: JSON.stringify(candidate.body),
+    });
+
+    if (upstream.ok) {
+      return json({ ok: true, name, score }, 200, { ...cors, 'x-upstream-path': path });
+    }
+
     const detail = await upstream.text().catch(() => '');
-    return json(
-      { error: `Upstream rejected the score (HTTP ${upstream.status}).`, detail: detail.slice(0, 200) },
-      upstream.status >= 500 ? 502 : 400,
-      cors,
-    );
+    attempts.push({ path, status: upstream.status, detail: detail.slice(0, 300) });
+
+    // Only a 404 is safe to retry. It means the route does not exist, so
+    // nothing can have been written. Any other status means upstream matched
+    // the route and made up its own mind — retrying a 500 risks writing the
+    // same run onto the board twice, which is worse than not writing it once.
+    if (upstream.status !== 404) break;
   }
 
-  return json({ ok: true, name, score }, 200, cors);
+  const worst = attempts[attempts.length - 1]!;
+  return json(
+    {
+      error: `Upstream rejected the score: ${attempts
+        .map((a) => `${a.path} → ${a.status}`)
+        .join(', ')}`,
+      hint: diagnose(attempts),
+      attempts,
+    },
+    worst.status !== null && worst.status >= 500 ? 502 : 400,
+    cors,
+  );
 }
 
 /**
