@@ -32,6 +32,7 @@ See [Shipping to itch.io](#shipping-to-itchio).
 | [`GUIDE.md`](GUIDE.md) | Player guide (also shipped inside the game and the zip) |
 | [`CREDITS.md`](CREDITS.md) | Asset provenance and licences |
 | [`docs/LEADERBOARD.md`](docs/LEADERBOARD.md) | Leaderboard setup — the Vercel proxy, and what still needs verifying |
+| [`docs/ITCH.md`](docs/ITCH.md) | The itch.io page — theme, embed settings, page copy |
 
 ## Scripts
 
@@ -120,6 +121,10 @@ different one. See [`docs/LEADERBOARD.md`](docs/LEADERBOARD.md).
 Uploading: attach the zip, tick **This file will be played in the browser**, and
 set the embed to at least 960x640. The game is responsive and handles
 fullscreen, so the embed size is a floor rather than a target.
+
+The page around it — theme, the rest of the embed settings, what the description
+needs to say — is [`docs/ITCH.md`](docs/ITCH.md), with a ready-to-paste
+stylesheet in [`docs/itch-theme.css`](docs/itch-theme.css).
 
 ---
 

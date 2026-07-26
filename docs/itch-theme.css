@@ -1,0 +1,290 @@
+/*
+ * Pogo Drop — itch.io page theme.
+ *
+ * Paste into the game's Theme tab on itch.io (Edit game → Theme → Custom CSS).
+ * Set the colour pickers there as well, per docs/ITCH.md — the pickers style a
+ * few fragments itch renders before this stylesheet applies, so a page themed
+ * only here flashes light on first paint.
+ *
+ * Every colour is lifted from src/ui/style.css and src/core/Config.ts rather
+ * than picked to taste. The page and the game are one object; a page that
+ * merely coordinates with the game reads as a page *about* the game.
+ *
+ * The one idea worth keeping if you rewrite this: the page descends. Its
+ * background runs cyan at the top to violet at the bottom, tracking
+ * PALETTE.depthHues — cool at the surface, hot in the middle, deep violet at
+ * the bottom. Scrolling the page is the same gesture as playing the game.
+ */
+
+:root {
+  /* From src/ui/style.css — keep in sync. */
+  --pd-bg: #05060a;
+  --pd-panel: #0a0d16;
+  --pd-accent: #38e8ff;
+  --pd-hostile: #ff3b5c;
+  --pd-ink: #eef4ff;
+  --pd-ink-dim: #eef4ff88;
+
+  /* Tile hues from PALETTE, for the download button and accent details. */
+  --pd-down: #20e963;
+  --pd-time: #e9c120;
+  --pd-boost: #ce20e9;
+
+  --pd-mono: ui-monospace, "SF Mono", SFMono-Regular, "Cascadia Mono", Menlo,
+    Consolas, "Liberation Mono", monospace;
+
+  --pd-hair: #38e8ff2e;
+  --pd-glow: 0 0 24px #38e8ff33;
+}
+
+/* --- The shaft -----------------------------------------------------------
+ * Fixed attachment so the gradient belongs to the window rather than the
+ * document: the descent then reads at any page length, instead of compressing
+ * to nothing on a short page and stretching past the viewport on a long one.
+ */
+body {
+  background-color: var(--pd-bg);
+  background-image:
+    radial-gradient(120% 60% at 50% -10%, #38e8ff1f 0%, transparent 60%),
+    radial-gradient(140% 70% at 50% 110%, #7e20e924 0%, transparent 62%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  color: var(--pd-ink);
+  font-family: var(--pd-mono);
+  -webkit-font-smoothing: antialiased;
+}
+
+#wrapper,
+.game_page .inner_column,
+.view_game_page .inner_column {
+  background: transparent;
+}
+
+/* --- Type ----------------------------------------------------------------
+ * Monospace throughout, matching the game's readout look — which also means no
+ * font file, so the page has nothing to download before first paint.
+ */
+.game_page,
+.formatted_description,
+.game_info_panel_widget,
+.footer {
+  font-family: var(--pd-mono);
+}
+
+h1.game_title,
+.game_page h1 {
+  color: var(--pd-ink);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 30px #38e8ff59;
+}
+
+.game_short_text,
+.game_page .game_short_text {
+  color: var(--pd-accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.95em;
+}
+
+/* Section headings echo the HUD labels — TIME, SCORE, DEPTH. */
+.formatted_description h2,
+.formatted_description h3 {
+  color: var(--pd-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 1em;
+  border-bottom: 1px solid var(--pd-hair);
+  padding-bottom: 0.4em;
+  margin-top: 2.2em;
+}
+
+.formatted_description {
+  color: var(--pd-ink);
+  line-height: 1.65;
+}
+
+.formatted_description strong {
+  color: var(--pd-accent);
+}
+
+.formatted_description a,
+.game_page a {
+  color: var(--pd-accent);
+  text-decoration-color: #38e8ff66;
+  text-underline-offset: 3px;
+}
+
+.formatted_description a:hover,
+.game_page a:hover {
+  color: #8af4ff;
+  text-shadow: 0 0 14px #38e8ff80;
+}
+
+/* Tile-coloured keys, if the description lists the tiles. */
+.formatted_description code {
+  background: #38e8ff14;
+  border: 1px solid var(--pd-hair);
+  border-radius: 3px;
+  padding: 0.1em 0.4em;
+  color: var(--pd-accent);
+}
+
+.formatted_description blockquote {
+  border-left: 2px solid var(--pd-hostile);
+  color: var(--pd-ink-dim);
+  padding-left: 1em;
+  margin-left: 0;
+}
+
+/* --- The game frame ----------------------------------------------------
+ * The frame is the one element that must not be decorated much: a border with
+ * presence competes with the game's own bloom, and the game is already a dark
+ * void with glowing strokes. A hairline and a wide soft shadow are enough to
+ * seat it on the page.
+ */
+.game_frame,
+.html_embed_widget .game_frame,
+.embed_wrapper {
+  background: var(--pd-bg);
+  border: 1px solid var(--pd-hair);
+  border-radius: 4px;
+  box-shadow:
+    0 0 0 1px #05060a,
+    0 24px 80px #000000b3,
+    var(--pd-glow);
+  overflow: hidden;
+}
+
+.game_frame iframe {
+  display: block;
+  background: var(--pd-bg);
+}
+
+/* --- Buttons -----------------------------------------------------------
+ * Cyan, never red. Red is the hostile hue in game — it marks the UP tiles that
+ * cost you the run — so a red call to action would be teaching the wrong thing
+ * before the player has even started.
+ */
+.button,
+.buy_btn,
+.download_btn,
+.fullscreen_btn,
+.game_page .button {
+  background: var(--pd-accent);
+  border: 1px solid var(--pd-accent);
+  color: #04121a;
+  font-family: var(--pd-mono);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-shadow: none;
+  border-radius: 3px;
+  box-shadow: 0 0 22px #38e8ff4d;
+  transition: box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.button:hover,
+.buy_btn:hover,
+.download_btn:hover,
+.fullscreen_btn:hover {
+  background: #8af4ff;
+  border-color: #8af4ff;
+  color: #04121a;
+  box-shadow: 0 0 34px #38e8ff99;
+}
+
+/* The zip download is a secondary action — green, like the one tile that takes
+   you further down. */
+.download_btn {
+  background: transparent;
+  border-color: var(--pd-down);
+  color: var(--pd-down);
+  box-shadow: 0 0 18px #20e9633d;
+}
+
+.download_btn:hover {
+  background: var(--pd-down);
+  border-color: var(--pd-down);
+  color: #04140a;
+  box-shadow: 0 0 30px #20e96380;
+}
+
+/* --- Info panel and metadata ------------------------------------------- */
+.game_info_panel_widget,
+.game_page .game_info_panel_widget {
+  background: #0a0d16b3;
+  border: 1px solid var(--pd-hair);
+  border-radius: 4px;
+  color: var(--pd-ink-dim);
+}
+
+.game_info_panel_widget td,
+.game_info_panel_widget th {
+  border-color: #38e8ff1a;
+  color: var(--pd-ink-dim);
+}
+
+.game_info_panel_widget a {
+  color: var(--pd-accent);
+}
+
+.more_information_toggle,
+.more_information_toggle .toggle_row_btn {
+  color: var(--pd-accent);
+  border-color: var(--pd-hair);
+}
+
+/* --- Screenshots ------------------------------------------------------- */
+.screenshot_list img,
+.video_embed_widget {
+  border: 1px solid var(--pd-hair);
+  border-radius: 3px;
+  background: var(--pd-bg);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.screenshot_list img:hover {
+  border-color: var(--pd-accent);
+  box-shadow: 0 0 26px #38e8ff59;
+}
+
+/* --- Jam banner and footer --------------------------------------------- */
+.jam_entry,
+.game_page .jam_entry {
+  background: #0a0d16b3;
+  border: 1px solid #e9c1202e;
+  border-radius: 4px;
+  color: var(--pd-ink-dim);
+}
+
+.jam_entry a {
+  color: var(--pd-time);
+}
+
+.footer,
+.footer a,
+.game_page .footer {
+  color: var(--pd-ink-dim);
+}
+
+/* --- Comments ---------------------------------------------------------- */
+.community_post,
+.post_body,
+.comment_form_widget textarea,
+.comment_form_widget input {
+  background: #0a0d16b3;
+  border-color: var(--pd-hair);
+  color: var(--pd-ink);
+  font-family: var(--pd-mono);
+}
+
+.community_post .post_author {
+  color: var(--pd-accent);
+}
+
+/* --- Selection --------------------------------------------------------- */
+::selection {
+  background: #38e8ff3d;
+  color: var(--pd-ink);
+}
