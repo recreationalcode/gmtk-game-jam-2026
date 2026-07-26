@@ -68,6 +68,33 @@ export const POGO = {
   /** Apex multiplier for a frame-perfect bounce. */
   perfectApexScale: 1.72,
 
+  /**
+   * The bounce gets lower the deeper you are.
+   *
+   * Depth used to make floors wider and their tiles smaller, which cuts both
+   * ways: smaller tiles are harder to *hit*, but a fixed arc crosses more of
+   * them, so a deep floor was in some ways easier to get around than the first
+   * one. Shrinking the arc turns depth into a real ramp.
+   *
+   * What it actually costs the player is altitude, and altitude is information:
+   * the camera looks straight down, so a lower apex sees less of the board at
+   * the moment you are choosing where to go. Deeper floors have more tiles and
+   * you get to see less of them at once.
+   *
+   * Exponential decay to a floor rather than a linear slide, so it is smooth
+   * everywhere, front-loads the change where the player will read it as the
+   * game getting harder, and never reaches zero however deep anyone gets.
+   *
+   *     apex(d) = baseApex · (floor + (1 − floor) · e^(−d / falloff))
+   *
+   * The charged and perfect multipliers are left alone and apply on top, so a
+   * perfect still buys the same *proportional* lift — which matters more, not
+   * less, when the base is short. It is simply lower in absolute terms, because
+   * what it multiplies is lower.
+   */
+  apexDepthFloor: 0.55,
+  apexDepthFalloff: 6,
+
   /** Distance from the stick's foot up to the rider's eye, metres. */
   riderHeight: 2.2,
 

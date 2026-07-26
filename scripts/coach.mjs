@@ -182,12 +182,24 @@ results.dismiss = await (async () => {
   // rather than the match clock, because the match clock is held until the
   // first landing — and the opening drop is itself slowed by this very notice,
   // so the clock reads a flat zero and the assertion would pass vacuously.
-  const clockBefore = await page.evaluate(() => window.pogo.game.simTime);
-  await page.waitForTimeout(500);
-  const ticked = await page.evaluate(
-    () => document.querySelector('.notice-timer > i')?.style.width ?? '',
-  );
-  const slowedSpend = (await page.evaluate(() => window.pogo.game.simTime)) - clockBefore;
+  // Sampled as several short windows, and the *slowest* one is what counts.
+  // The dilation is an envelope — ease down, hold, ease back up — so a single
+  // fixed window lands wherever frame timing puts it, and one that happens to
+  // straddle the release ramp reports a scale that says nothing about how slow
+  // the world actually got.
+  let slowedSpend = Infinity;
+  let ticked = '';
+  for (let i = 0; i < 4; i++) {
+    const before = await page.evaluate(() => window.pogo.game.simTime);
+    await page.waitForTimeout(220);
+    const spent = (await page.evaluate(() => window.pogo.game.simTime)) - before;
+    slowedSpend = Math.min(slowedSpend, spent * (500 / 220));
+    if (i === 1) {
+      ticked = await page.evaluate(
+        () => document.querySelector('.notice-timer > i')?.style.width ?? '',
+      );
+    }
+  }
 
   await page.mouse.click(320, 700);
   await page.waitForTimeout(250);

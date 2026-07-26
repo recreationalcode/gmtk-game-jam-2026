@@ -85,6 +85,21 @@ could reset it by bouncing up and back.
 
 ---
 
+## It gets harder as you go
+
+**The deeper you are, the lower you bounce.** It comes down smoothly — you will
+not notice any single floor doing it — but by five or six floors down the arc is
+noticeably shorter than it was at the surface.
+
+That costs you altitude, and altitude is how you see the board: the lower the
+peak, the less of the floor is in frame when you are choosing where to go next.
+Deeper floors have more tiles and you get to see fewer of them at a time.
+
+A **PERFECT** bounce still lifts you the same proportion above that — it is just
+a shorter arc it is lifting. The deeper you get, the more the timing is worth.
+
+---
+
 ## Floors have shapes
 
 Every floor is one of a few kinds, and you can read which from the top of the

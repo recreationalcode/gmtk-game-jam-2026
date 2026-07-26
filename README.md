@@ -41,6 +41,7 @@ npm run package      # build + verified itch.io zip in build/
 | `npm run touch` | Regression: press aims, drag steers, release bounces |
 | `npm run tiles` | Regression: varied spawn values, out-of-phase decay, reset on leaving |
 | `npm run themes` | Regression: floor themes, one way down, reveal order, cooldowns |
+| `npm run bounce` | Regression: the arc shrinks smoothly with depth and stays playable |
 | `npm run music` | Regression: title, match and post-run tracks all play, and differ |
 | `npm run proxy` | Regression: the leaderboard function, run under Node with a stubbed upstream |
 | `npm run aim` | Regression: the reticle goes where the cursor points, fast |

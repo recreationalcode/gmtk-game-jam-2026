@@ -352,7 +352,7 @@ export class GameState {
     this.score += bonus;
 
     this.ensureFloor(this.depth, x, z);
-    this.player.setFloorY(this.floor.y);
+    this.player.setFloorY(this.floor.y, this.depth);
 
     this.hitstop = Math.max(this.hitstop, FEEL.hitstopDescend);
     this.addShake(FEEL.shakeOnDescend);
@@ -375,7 +375,7 @@ export class GameState {
     this.multiplier = Math.max(SCORE.minMultiplier, this.multiplier - SCORE.multiplierPerDepth);
 
     this.ensureFloor(this.depth, x, z);
-    this.player.setFloorY(this.floor.y);
+    this.player.setFloorY(this.floor.y, this.depth);
     // Big launch: the floor above is a whole storey up, so an UP tile has to
     // throw you clear of it rather than merely bounce you.
     this.player.launchToApex(ascendApex());

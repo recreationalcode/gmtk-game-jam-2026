@@ -130,6 +130,37 @@ press followed by a release, and firing on both would double-register it. The
 aim is held briefly after release so bouncing does not discard the tile you had
 lined up.
 
+**The bounce gets lower the deeper you are.** Depth already made floors wider
+and their tiles smaller, which cuts both ways: smaller tiles are harder to hit,
+but a fixed arc crosses more of them — so a deep floor was in some respects
+easier to move around than the first one. The arc now shrinks with depth, on an
+exponential decay to a floor:
+
+```
+apex(d) = baseApex · (0.55 + 0.45 · e^(−d / 6))
+```
+
+| Depth | Base apex | Perfect | Airtime |
+|---|---|---|---|
+| 0 | 4.80 m | 8.26 m | 1.35 s |
+| 4 | 3.75 m | 6.45 m | 1.20 s |
+| 8 | 3.21 m | 5.52 m | 1.11 s |
+| 16 | 2.79 m | 4.80 m | 1.03 s |
+
+What it costs is altitude, and altitude is *information*: the camera looks
+straight down, so a lower apex sees less of the board at the moment you are
+choosing where to go. Deeper floors have more tiles and you get to see fewer of
+them at once. Exponential rather than linear so it is smooth everywhere (the
+largest single-floor step is 6.9%, at depth 1) and never reaches zero however
+deep anyone gets.
+
+The charged and perfect multipliers are deliberately untouched and apply on top.
+A perfect still buys the same *proportional* lift, which matters more when the
+base is short, and is simply lower in absolute terms because what it multiplies
+is lower. `ascendApex` is also untouched: an UP tile is not a bounce the player
+earned but a punishment with a job to do, and scaling it would eventually leave
+it short of the floor it exists to reach.
+
 Air control is deliberately limited (you steer, you don't fly), so charging the
 bounce stays the primary way to cover distance.
 

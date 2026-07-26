@@ -22,6 +22,7 @@
     "touch": "node scripts/touch.mjs",
     "tiles": "node scripts/tiles.mjs",
     "themes": "node scripts/themes.mjs",
+    "bounce": "node scripts/bounce.mjs",
     "music": "node scripts/music.mjs",
     "aim": "node scripts/aim.mjs"
   },

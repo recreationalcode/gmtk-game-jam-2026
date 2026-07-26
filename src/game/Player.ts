@@ -33,6 +33,8 @@ export class Player {
 
   /** Y of the floor surface currently being bounced on. */
   floorY = 0;
+  /** Current depth, which sets how high a bounce goes. */
+  depth = 0;
 
   /** Visual spring compression, metres. */
   compression = 0;
@@ -60,6 +62,7 @@ export class Player {
     this.x = 0;
     this.z = 0;
     this.floorY = floorY;
+    this.depth = 0;
     // Fall in from height rather than starting mid-bounce on the ground.
     this.y = floorY + POGO.startDropHeight;
     this.vx = 0;
@@ -258,12 +261,12 @@ export class Player {
 
     if (quality === 'normal') {
       this.lateGraceUntil = now + BOUNCE_TIMING.lateGrace;
-      this.lateGraceBaseApex = POGO.baseApex;
+      this.lateGraceBaseApex = baseApexAt(this.depth);
     } else {
       this.lateGraceUntil = -Infinity;
     }
 
-    this.vy = launchSpeed(apexFor(quality));
+    this.vy = launchSpeed(apexFor(quality, this.depth));
     return { x: this.x, z: this.z, impactSpeed, quality };
   }
 
@@ -284,8 +287,9 @@ export class Player {
   }
 
   /** Move the reference floor without touching the player's world position. */
-  setFloorY(y: number): void {
+  setFloorY(y: number, depth: number): void {
     this.floorY = y;
+    this.depth = depth;
   }
 
   private updateSpring(dt: number): void {
@@ -331,18 +335,40 @@ export function launchSpeed(apex: number): number {
   return Math.sqrt(2 * POGO.gravity * Math.max(0.01, apex));
 }
 
-export function apexFor(quality: BounceQuality): number {
+/**
+ * How much of the surface bounce you still get at this depth, 0–1.
+ *
+ * Smooth and monotonic by construction — see `POGO.apexDepthFloor`.
+ */
+export function apexScaleForDepth(depth: number): number {
+  const floor = POGO.apexDepthFloor;
+  return floor + (1 - floor) * Math.exp(-Math.max(0, depth) / POGO.apexDepthFalloff);
+}
+
+/** The uncharged apex at this depth. */
+export function baseApexAt(depth: number): number {
+  return POGO.baseApex * apexScaleForDepth(depth);
+}
+
+export function apexFor(quality: BounceQuality, depth: number): number {
+  const base = baseApexAt(depth);
   switch (quality) {
     case 'perfect':
-      return POGO.baseApex * POGO.perfectApexScale;
+      return base * POGO.perfectApexScale;
     case 'charged':
-      return POGO.baseApex * POGO.chargedApexScale;
+      return base * POGO.chargedApexScale;
     default:
-      return POGO.baseApex;
+      return base;
   }
 }
 
-/** Apex needed for an UP tile to carry the player onto the floor above. */
+/**
+ * Apex needed for an UP tile to carry the player onto the floor above.
+ *
+ * Deliberately *not* scaled by depth. This is not a bounce the player earned,
+ * it is a punishment with a job to do — clearing a full storey — and a depth
+ * scale would eventually leave it short of the floor it is meant to reach.
+ */
 export function ascendApex(): number {
   return FLOOR.floorDrop + POGO.baseApex * 1.05;
 }
