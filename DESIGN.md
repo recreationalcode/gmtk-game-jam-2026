@@ -90,6 +90,22 @@ usually further than a lazy bounce can reach.**
 A **landing reticle** projects where you will touch down and highlights that
 tile. In a first-person-down camera this is non-negotiable for readability.
 
+**The mouse aims at a point rather than leaning in a direction.** Treating the
+cursor as a lean meant the reticle showed where physics was carrying you rather
+than where you were pointing, and the response curve compounded it — a cursor a
+fifth of the way to the screen edge produced ten percent steering authority, so
+aiming at a neighbouring tile barely moved the reticle. It read as lag.
+
+The cursor now projects onto the floor plane and the steering is *solved*:
+from `target = p + v·t + ½at²`, the required acceleration is
+`a = 2(target − p − v·t)/t²`. Solved analytically rather than run as a
+proportional controller on the predicted landing, which would oscillate, since
+the prediction already depends on the steer being chosen. When the solution
+exceeds what the rider can do it saturates, so an unreachable tile reads as
+"as close as possible" instead of as the game ignoring you. Measured
+acquisition is one frame. Keyboard, gamepad and touch remain lean inputs —
+they have no cursor to point with.
+
 **Touch bounces on release, not on press.** A thumb holding and dragging to
 steer cannot simultaneously produce a new touch to time the bounce with — the
 two gestures compete for the same finger, which left one-handed play unable to

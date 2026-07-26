@@ -25,8 +25,9 @@ A `5` at depth −4 is worth 25 points. A `9` on the surface is worth 9.
 | **Bounce** | `Space` or click | **Release** | Any face button |
 | **Pause** | `Esc` or `P` | Pause button | — |
 
-The screen *is* the floor. Point at the tile you want and you will lean toward
-it.
+The screen *is* the floor. **Point at the tile you want and the pogo goes
+there** — the cursor is a target, not a nudge. If a tile is too far to reach in
+the time you have left, you will get as close to it as physics allows.
 
 **On touch the whole thing is one gesture: press to start aiming, drag to aim,
 release on the beat.** A thumb that is holding and dragging to steer cannot also

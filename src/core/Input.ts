@@ -137,6 +137,17 @@ export class Input {
     this.steer.y = 0;
   }
 
+  /**
+   * Normalised cursor position, or null when the mouse is not the active
+   * scheme. The app projects this onto the floor to aim, so it is deliberately
+   * raw — no dead zone, no response curve, because it is a position rather than
+   * a lean.
+   */
+  getPointerAim(): { x: number; y: number } | null {
+    if (this.lastScheme !== 'pointer' || !this.pointerInside) return null;
+    return { x: this.pointerX, y: this.pointerY };
+  }
+
   /** Screen-space origin and current offset of the touch stick, for the HUD. */
   getTouchStick(): { ox: number; oy: number; radius: number } | null {
     if (this.touchId === null) return null;

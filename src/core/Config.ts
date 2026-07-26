@@ -387,6 +387,32 @@ export const CAMERA = {
  * target, and the timing cue is carried by brightness and spin instead of by
  * sheer size.
  */
+/**
+ * Mouse aiming.
+ *
+ * The cursor is a *target*, not a lean. Treating it as a lean meant the reticle
+ * showed where physics was taking you rather than where you were pointing, and
+ * the response curve made it worse: a cursor a fifth of the way to the screen
+ * edge produced ten percent steering authority, so aiming at a neighbouring
+ * tile barely moved the reticle at all. It read as lag, or as the game ignoring
+ * the mouse.
+ *
+ * The cursor now projects onto the floor plane and the steering is solved for:
+ * given where you are, how fast you are going and how long is left, what
+ * acceleration lands you on that point. The reticle converges on the cursor as
+ * fast as the physics allows, and when it cannot reach it saturates and gets as
+ * close as it can — which is honest rather than mysterious.
+ */
+export const POINTER_AIM = {
+  enabled: true,
+  /**
+   * Blend from pure targeting toward the raw solution near the end of the arc.
+   * Kept at 1: the solved acceleration already saturates when it runs out of
+   * time, so no extra shaping is needed.
+   */
+  authority: 1,
+} as const;
+
 export const RETICLE = {
   /** Seconds of lead over which the ring converges on the square. */
   ringLead: 0.55,

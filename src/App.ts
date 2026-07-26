@@ -6,6 +6,7 @@ import {
   FLOOR,
   PALETTE,
   POGO,
+  POINTER_AIM,
   NOTICE_TIME,
   SIM,
   TileKind,
@@ -15,6 +16,7 @@ import { Input } from './core/Input';
 import { clamp, clamp01, damp, formatScore, lerp, smoothstep } from './core/MathUtil';
 import { Coach, type SeenStore } from './game/Coach';
 import { GameState, type GameEvent } from './game/GameState';
+import { steerAccelAt } from './game/Player';
 import { Leaderboard } from './net/Leaderboard';
 import { Particles, Shockwaves } from './render/Effects';
 import { createGlyphAtlas } from './render/GlyphAtlas';
@@ -50,7 +52,8 @@ export class App {
   /** Public for the dev-only inspection handle installed by main.ts. */
   readonly input: Input;
   private readonly renderer: Renderer;
-  private readonly rig: PlayerRig;
+  /** Public for the dev-only inspection handle installed by main.ts. */
+  readonly rig: PlayerRig;
   private readonly hud: HUD;
   private readonly screens: Screens;
   private readonly stats: Stats;
@@ -69,7 +72,8 @@ export class App {
   private readonly fieldDissolving: TileField;
   private readonly shockwaves: Shockwaves;
   private readonly particles: Particles;
-  private readonly guides = new Guides();
+  /** Public for the dev-only inspection handle installed by main.ts. */
+  readonly guides = new Guides();
 
   private phase: AppPhase = 'title';
   private accumulator = 0;
@@ -95,6 +99,11 @@ export class App {
   private readonly steerRight = new THREE.Vector3();
   private readonly steerForward = new THREE.Vector3();
   private readonly landing = { x: 0, z: 0 };
+  private readonly aimTarget = new THREE.Vector3();
+  private readonly aimRay = new THREE.Vector3();
+  private readonly aimOrigin = new THREE.Vector3();
+  /** Steering command for this frame, in world space. */
+  private readonly steerWorld = { x: 0, z: 0 };
 
   private submitted = false;
 
@@ -300,6 +309,88 @@ export class App {
     return lerp(1, NOTICE_TIME.slowScale, entered * (1 - released));
   }
 
+  /**
+   * Resolve this frame's steering into world space.
+   *
+   * The mouse aims at a point; everything else leans in a direction. Those are
+   * genuinely different inputs and collapsing them into one was what made the
+   * cursor feel disconnected from the reticle.
+   */
+  private computeSteer(): void {
+    const aim = POINTER_AIM.enabled ? this.input.getPointerAim() : null;
+    if (aim && this.projectToFloor(aim.x, aim.y)) {
+      this.solveSteerToward(this.aimTarget.x, this.aimTarget.z);
+      return;
+    }
+
+    this.steerWorld.x =
+      this.steerRight.x * this.input.steer.x + this.steerForward.x * this.input.steer.y;
+    this.steerWorld.z =
+      this.steerRight.z * this.input.steer.x + this.steerForward.z * this.input.steer.y;
+  }
+
+  /**
+   * Cast the cursor through the camera onto the active floor plane. Returns
+   * false when the ray runs parallel to the floor, which the straight-down
+   * camera makes effectively impossible but is cheap to guard.
+   */
+  private projectToFloor(nx: number, ny: number): boolean {
+    const camera = this.rig.camera;
+    camera.updateMatrixWorld();
+    camera.getWorldPosition(this.aimOrigin);
+
+    this.aimRay.set(nx * 2 - 1, -(ny * 2 - 1), 0.5).unproject(camera).sub(this.aimOrigin);
+    if (Math.abs(this.aimRay.y) < 1e-4) return false;
+
+    const floor = this.game.floor;
+    const t = (floor.y - this.aimOrigin.y) / this.aimRay.y;
+    if (t <= 0) return false;
+
+    this.aimTarget.copy(this.aimRay).multiplyScalar(t).add(this.aimOrigin);
+    // Aiming past the rim would ask for a landing the containment will refuse.
+    const half = floor.halfExtent;
+    this.aimTarget.x = clamp(this.aimTarget.x, -half, half);
+    this.aimTarget.z = clamp(this.aimTarget.z, -half, half);
+    return true;
+  }
+
+  /**
+   * Solve for the steering that lands the rider on a world point.
+   *
+   * From `target = p + v·t + ½·a·t²`, the required acceleration is
+   * `a = 2(target − p − v·t) / t²`. Solving analytically rather than running a
+   * proportional controller on the predicted landing avoids the oscillation a
+   * feedback loop would have, since the prediction already depends on the steer
+   * being chosen. Drag and the speed cap make it approximate, but it is
+   * recomputed every frame from live state, so the residual corrects itself.
+   */
+  private solveSteerToward(targetX: number, targetZ: number): void {
+    const player = this.game.player;
+    const t = player.timeToImpact();
+
+    if (!Number.isFinite(t) || t <= 1e-3) {
+      this.steerWorld.x = 0;
+      this.steerWorld.z = 0;
+      return;
+    }
+
+    const accel = steerAccelAt(t);
+    const ax = (2 * (targetX - player.x - player.vx * t)) / (t * t);
+    const az = (2 * (targetZ - player.z - player.vz * t)) / (t * t);
+
+    let sx = (ax / accel) * POINTER_AIM.authority;
+    let sz = (az / accel) * POINTER_AIM.authority;
+    // Saturate rather than exceed what the rider can actually do — this is what
+    // makes an unreachable tile read as "as close as possible" instead of a lie.
+    const len = Math.hypot(sx, sz);
+    if (len > 1) {
+      sx /= len;
+      sz /= len;
+    }
+    this.steerWorld.x = sx;
+    this.steerWorld.z = sz;
+  }
+
   private simulate(dt: number): void {
     this.accumulator += dt;
 
@@ -314,10 +405,9 @@ export class App {
     this.steerRight.normalize();
     this.steerForward.normalize();
 
-    const steerX =
-      this.steerRight.x * this.input.steer.x + this.steerForward.x * this.input.steer.y;
-    const steerZ =
-      this.steerRight.z * this.input.steer.x + this.steerForward.z * this.input.steer.y;
+    this.computeSteer();
+    const steerX = this.steerWorld.x;
+    const steerZ = this.steerWorld.z;
 
     // Every sub-step advances the simulated clock, and input ages are measured
     // against it. Using wall time here would smear timing accuracy by a whole
@@ -532,8 +622,8 @@ export class App {
 
     if (this.phase === 'playing') {
       const t = game.player.predictLanding(
-        this.steerRight.x * this.input.steer.x + this.steerForward.x * this.input.steer.y,
-        this.steerRight.z * this.input.steer.x + this.steerForward.z * this.input.steer.y,
+        this.steerWorld.x,
+        this.steerWorld.z,
         this.landing,
       );
       this.guides.update(
