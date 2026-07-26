@@ -58,6 +58,11 @@ and `Color.setHSL` defaulting to the *linear* working space rather than sRGB —
 which made every colour in the game about twelve times too bright and turned the
 endgame screen flat pink.
 
+`?coach=reset` forgets every tip so the teaching system can be reviewed again —
+it ships in the real build, because each tip has a lifetime budget of one or two
+shows *per device* and anyone who has played a few times has permanently spent
+the lot.
+
 Dev-only affordances, all stripped from production by `import.meta.env.DEV`:
 `?matchSeconds=`, `?tier=low|medium|high`, and a `window.pogo` inspection
 handle. **F3** toggles a frame-budget overlay (fps, draw calls, triangles) and

@@ -66,7 +66,8 @@ export class App {
   private readonly stats: Stats;
   /** Public for the dev-only inspection handle installed by main.ts. */
   readonly notifications: Notifications;
-  private readonly coach = new Coach(new LocalSeenStore());
+  /** Public for the dev handle and the headless tests. */
+  readonly coach = new Coach(new LocalSeenStore());
 
   /**
    * Scales every camera shake, chromatic separation and screen flash. Motion
@@ -174,6 +175,7 @@ export class App {
     // through to the bounce as normal — taking the input away to pay for the
     // dismissal would mean the prompt cost you the thing it invited you to do.
     this.input.onConfirm.add(() => this.notifications.dismiss());
+    this.notifications.onPresent = (id) => this.coach.markPresented(id);
     this.listenForFirstGesture();
     this.input.onPause.add(() => {
       // Escape backs out of the guide or the leaderboard first; only then does
@@ -865,6 +867,17 @@ class LocalSeenStore implements SeenStore {
 
   private static load(): Record<string, number> {
     try {
+      // `?coach=reset` forgets every tip, so they can be seen again.
+      //
+      // Not a dev-only override, deliberately. Every tip has a lifetime budget
+      // of one or two shows *per device*, which means anyone who has played a
+      // few times — the developer most of all — has permanently exhausted the
+      // entire teaching system and cannot review it without clearing site data
+      // by hand. It cannot be abused: it only makes the game more talkative.
+      if (new URLSearchParams(location.search).get('coach') === 'reset') {
+        localStorage.removeItem(LocalSeenStore.KEY);
+        return {};
+      }
       const raw = localStorage.getItem(LocalSeenStore.KEY);
       if (!raw) return {};
       const parsed: unknown = JSON.parse(raw);

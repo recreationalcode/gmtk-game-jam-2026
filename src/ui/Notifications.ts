@@ -78,6 +78,15 @@ export class Notifications {
 
   /** Swaps the prompt between "Click" and "Tap". */
   touchMode = false;
+  /**
+   * Called with a notice id the moment it reaches the screen.
+   *
+   * The coach spends a notice's lifetime budget from here rather than when it
+   * queues one, because the queue is cleared on pause, quit and game over — so
+   * queueing and showing are genuinely different events and only the second one
+   * means the player was taught anything.
+   */
+  onPresent: ((id: string) => void) | null = null;
   private lastBarWidth = -1;
   private shownFor = 0;
 
@@ -196,6 +205,7 @@ export class Notifications {
 
   private present(notice: Notice): void {
     this.showing = notice;
+    this.onPresent?.(notice.id);
     this.hold = holdFor(notice);
     this.timer = this.hold;
     this.shownFor = 0;

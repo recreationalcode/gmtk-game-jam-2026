@@ -159,8 +159,18 @@ const PROBE = {
 await hover();
 results.dismiss = await (async () => {
   await page.evaluate((n) => window.pogo.notifications.push([n]), PROBE);
-  // Past MIN_VISIBLE_SECONDS, so the dismissal below is allowed to work.
-  await page.waitForTimeout(1300);
+  // Wait for it to actually reach the screen *and* pass its minimum-visible
+  // window. It queues behind whatever is already showing, so a fixed delay
+  // measures the wrong toast — or none at all.
+  for (let i = 0; i < 200; i++) {
+    const ready = await page.evaluate(
+      () =>
+        window.pogo.notifications.dismissable &&
+        document.querySelector('.notice-title')?.textContent === 'Probe notice',
+    );
+    if (ready) break;
+    await page.waitForTimeout(100);
+  }
 
   const before = await page.evaluate(() => ({
     visible: document.getElementById('notice')?.classList.contains('visible') ?? false,
@@ -185,8 +195,11 @@ results.dismiss = await (async () => {
     visible: document.getElementById('notice')?.classList.contains('visible') ?? false,
     busy: window.pogo.notifications.busy,
   }));
-  // ...and the same window with nothing on screen, for comparison.
-  await page.waitForTimeout(400);
+  // ...and the same window with nothing on screen, for comparison. The queue
+  // is emptied first: a following toast would slow the very window meant to
+  // show full speed, and the dilation ramp needs a moment to unwind either way.
+  await page.evaluate(() => window.pogo.notifications.clear());
+  await page.waitForTimeout(900);
   const idleBefore = await page.evaluate(() => window.pogo.game.simTime);
   await page.waitForTimeout(500);
   const normalSpend = (await page.evaluate(() => window.pogo.game.simTime)) - idleBefore;
@@ -213,14 +226,14 @@ for (let i = 0; i < 2; i++) {
   }, i);
   await page.waitForTimeout(400);
 }
-// Read this *before* draining. The seen-store records a notice the moment the
-// rule pushes it, so localStorage says when it fired; waiting for the queue to
-// empty would instead measure how long three toasts take to play, which is
-// almost exactly the ten-second fallback and made this assertion meaningless.
+// Read this *before* draining: the question is when the rule fired, not when
+// the toast eventually got its turn on screen. Those are seconds apart, and
+// waiting for the queue would instead measure three toasts playing out, which
+// is almost exactly the ten-second fallback this is meant to rule out.
 await page.waitForTimeout(400);
 results.wayDownFiredAt = await page.evaluate(() => ({
   simTime: window.pogo.game.simTime,
-  recorded: JSON.parse(localStorage.getItem('pogodrop.coach.v1') ?? '{}')['tile:down'] ?? 0,
+  fired: window.pogo.coach.hasFired('tile:down'),
 }));
 await drain();
 await page.screenshot({ path: path.join(OUT, 'notice-live.png') });
@@ -380,6 +393,63 @@ for (const [kind, label] of [['time', 'TIME'], ['boost', 'BOOST'], ['freeze', 'F
 }
 await drain();
 
+// --- a notice never shown must not count as taught -------------------------
+//
+// The budget used to be spent when a notice was *queued*. The queue is cleared
+// on pause, on quitting to the title and on game over, so anything queued in
+// the last second of a run — or while the player tabbed away — was recorded as
+// taught without ever being displayed. Most budgets are one, so that was
+// permanent: on that device, the tip could never appear again.
+results.unseenNotSpent = await (async () => {
+  await page.evaluate(() => {
+    localStorage.removeItem('pogodrop.coach.v1');
+  });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(800);
+  await page.click('#screen-title button[data-act="play"]');
+  await page.waitForTimeout(150);
+
+  // Queue something, then wipe the queue before it can reach the screen.
+  await page.evaluate(() => {
+    window.pogo.notifications.push([
+      { id: 'test:unseen', title: 'Never shown', tone: 'info', priority: 200 },
+    ]);
+    window.pogo.notifications.clear();
+  });
+  await page.waitForTimeout(300);
+  const afterCleared = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('pogodrop.coach.v1') ?? '{}')['test:unseen'] ?? 0,
+  );
+
+  // ...and one that does reach the screen must be counted.
+  await page.evaluate(() => {
+    window.pogo.notifications.push([
+      { id: 'test:shown', title: 'Actually shown', tone: 'info', priority: 200 },
+    ]);
+  });
+  for (let i = 0; i < 100; i++) {
+    const up = await page.evaluate(
+      () => document.querySelector('.notice-title')?.textContent === 'Actually shown',
+    );
+    if (up) break;
+    await page.waitForTimeout(100);
+  }
+  await page.waitForTimeout(200);
+  const afterShown = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('pogodrop.coach.v1') ?? '{}')['test:shown'] ?? 0,
+  );
+  return { afterCleared, afterShown };
+})();
+
+if (results.unseenNotSpent.afterCleared !== 0) {
+  failures.push('a notice cleared before it was shown still spent its lifetime budget');
+}
+if (results.unseenNotSpent.afterShown !== 1) {
+  failures.push(
+    `a notice that was shown did not spend its budget (recorded ${results.unseenNotSpent.afterShown})`,
+  );
+}
+
 collecting = false;
 await collector;
 
@@ -420,8 +490,15 @@ if (results.opening[0] === undefined || !/Score as much as you can/i.test(result
     );
   }
   // ...and it must come back, or a dismissed tip leaves the game in treacle.
-  if (d.secondsSpentNormally < 0.4) {
-    failures.push(`time did not return to full speed after dismissing (${d.secondsSpentNormally}s per 0.5s)`);
+  //
+  // Stated as a ratio, not as an absolute rate. Under a software renderer this
+  // container drops to a few frames a second, at which point `maxStepsPerFrame`
+  // deliberately runs the simulation in slow motion — so an absolute threshold
+  // here was really asserting how fast the test machine draws.
+  if (d.secondsSpentNormally < d.secondsSpentWhileReading * 3) {
+    failures.push(
+      `dismissing did not speed the world back up (${d.secondsSpentWhileReading}s reading vs ${d.secondsSpentNormally}s after)`,
+    );
   }
 }
 
@@ -429,7 +506,10 @@ if (results.opening[0] === undefined || !/Score as much as you can/i.test(result
 // simulated time this would be ten times longer.
 if (results.hitstopWhileReadingMs === null) {
   failures.push('no toast was on screen for the hitstop measurement');
-} else if (results.hitstopWhileReadingMs > 1300) {
+  // Generous: `dt` is clamped at 250ms, so on a machine drawing slower than
+  // that a hitstop stretches with everything else. Spent in simulated time the
+  // same probe measured 3978ms, so there is still a clear gap to catch.
+} else if (results.hitstopWhileReadingMs > 2000) {
   failures.push(
     `a 600ms hitstop froze the screen for ${results.hitstopWhileReadingMs}ms while a tip was up — it is being spent in simulated time`,
   );
@@ -439,7 +519,7 @@ if (!results.shownFirstRun.some((t) => /Land on the ×2 tile/.test(t))) {
   failures.push('the way-down hint never appeared');
 }
 // Two surface UP tiles should have pulled it in well before the 10s fallback.
-if (results.wayDownFiredAt.recorded === 0) {
+if (!results.wayDownFiredAt.fired) {
   failures.push('the way-down hint had not fired after two surface UP tiles');
 } else if (results.wayDownFiredAt.simTime >= 10) {
   failures.push(

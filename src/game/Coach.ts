@@ -78,6 +78,8 @@ const PERFECT_HINT_AFTER_CHARGED = 5;
  */
 const DOWN_HINT_AFTER_SECONDS = 10;
 const DOWN_HINT_AFTER_SURFACE_UPS = 2;
+/** Below this share of number tiles, a floor counts as picked clean. */
+const STUCK_SCORING_FRACTION = 0.06;
 
 export interface SeenStore {
   count(id: string): number;
@@ -369,11 +371,15 @@ export class Coach {
     }
 
     // A floor with almost nothing left on it is a floor to leave.
+    //
+    // Judged as a fraction, not as zero. A deep floor spawns forty-odd number
+    // tiles and resets whenever you leave it, so "not one left" essentially
+    // never happened and this tip was unreachable in practice.
     if (this.descended && TILE_DECAY.enabled) {
       const floor = game.floor;
       let scoring = 0;
       for (const t of floor.tiles) if (t.kind === TileKind.Number) scoring++;
-      if (scoring === 0) {
+      if (scoring <= Math.max(1, Math.floor(floor.tiles.length * STUCK_SCORING_FRACTION))) {
         this.push({
           id: 'tip:stuck',
           title: 'This floor is spent',
@@ -411,14 +417,40 @@ export class Coach {
     }
   }
 
+  /**
+   * Spend a notice's lifetime budget — called when it actually reaches the
+   * screen, not when it is queued.
+   *
+   * Those are not the same moment, and conflating them quietly destroyed most
+   * of this system. The queue is cleared on pause, on quitting to the title and
+   * on game over, so any notice queued in the last second of a run — or while
+   * the player tabbed away — was marked as taught without ever being displayed.
+   * Most budgets are one, so that was permanent: the tip could never appear
+   * again on that device.
+   */
+  markPresented(id: string): void {
+    this.seen.record(id);
+  }
+
+  /**
+   * Whether a rule has fired this run, regardless of whether the notice has
+   * reached the screen yet. Read by the headless tests, which previously used
+   * the seen-store for this and can no longer: that now records *display*, and
+   * a rule firing and its notice being shown are several seconds apart.
+   */
+  hasFired(id: string): boolean {
+    return this.firedThisRun.has(id);
+  }
+
   /** @returns true if the notice was actually queued. */
   private push(notice: Notice): boolean {
     if (this.firedThisRun.has(notice.id)) return false;
     const limit = MAX_SHOWS[notice.id] ?? 1;
     if (this.seen.count(notice.id) >= limit) return false;
 
+    // Only the within-run guard is set here. The persistent count is spent by
+    // `markPresented`, once the notice has actually been shown.
     this.firedThisRun.add(notice.id);
-    this.seen.record(notice.id);
     this.pending.push(notice);
     return true;
   }
