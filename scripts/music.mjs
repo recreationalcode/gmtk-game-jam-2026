@@ -12,8 +12,14 @@
  *
  * Deliberately does *not* pass --autoplay-policy=no-user-gesture-required. The
  * title track is requested before any input exists, so the interesting question
- * is whether the engine remembers the request and starts it on the first
- * keypress — and that only gets tested with the real policy in force.
+ * is whether it starts on the player's first real gesture — and that only gets
+ * tested with the real policy in force.
+ *
+ * That first gesture is a *button on the title panel*, which is what a player
+ * actually does. An earlier version of this test pressed a key on `window`
+ * instead, which passed while the real thing was silent: `Input` listens on the
+ * canvas, and the panel sits on top of it, so no menu click ever reached the
+ * unlock. A test is only worth the path it takes.
  *
  * Usage:  npm run dev   (in one shell)
  *         node scripts/music.mjs
@@ -81,8 +87,16 @@ const results = {};
 // engine retries on unlock. Silence here means that retry is broken.
 results.beforeAnyInput = await page.evaluate(() => ({ ...window.__audioTally }));
 
-await page.keyboard.press('Shift');
-await page.waitForTimeout(400);
+// The realistic first interaction: a button on the title panel, over the canvas.
+await page.click('#screen-title button[data-act="guide"]');
+await page.waitForTimeout(500);
+results.afterMenuClick = await page.evaluate(() => ({
+  notes: window.__audioTally.osc,
+  track: window.pogo.audio.currentTrack,
+}));
+
+await page.click('#screen-guide button[data-act="back"]');
+await page.waitForTimeout(300);
 await page.evaluate(() => window.__audioReset());
 await page.waitForTimeout(2500);
 results.title = await page.evaluate(() => ({ ...window.__audioTally }));
@@ -116,6 +130,10 @@ const check = (label, ok) => {
 check(
   `${results.beforeAnyInput.osc} notes played before any input`,
   results.beforeAnyInput.osc === 0,
+);
+check(
+  'clicking a title-panel button did not start the music — the unlock never reaches the menu',
+  results.afterMenuClick.notes > 0 && results.afterMenuClick.track === 'title',
 );
 check('the title track never started — the unlock retry is broken', results.title.osc > 0);
 check('the title track is not selected', results.titleTrack === 'title');

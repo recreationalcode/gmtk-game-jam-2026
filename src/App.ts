@@ -107,6 +107,24 @@ export class App {
   private readonly aimOrigin = new THREE.Vector3();
   /** Steering command for this frame, in world space. */
   private readonly steerWorld = { x: 0, z: 0 };
+  /**
+   * The world point currently being aimed at, latched until the input moves.
+   *
+   * Re-projecting the cursor every frame looks right and is not: the camera is
+   * falling, so the same screen pixel maps to a different world point each
+   * frame, and a player holding perfectly still watches the reticle walk off
+   * the tile they picked. The target is therefore a world position that only
+   * changes when the player actually asks for it to.
+   */
+  private aimLatch: { x: number; z: number } | null = null;
+
+  /** The latched aim point, for the dev handle and the headless aim test. */
+  get aimPoint(): { x: number; z: number } | null {
+    return this.aimLatch;
+  }
+
+  private aimLatchSeq = -1;
+  private aimLatchFloorY = Number.NaN;
 
   private submitted = false;
 
@@ -148,6 +166,7 @@ export class App {
 
     this.input.setClockSource(() => this.simClock);
     this.input.onAnyInput.add(() => void this.audio.unlock());
+    this.listenForFirstGesture();
     this.input.onPause.add(() => {
       // Escape backs out of the guide or the leaderboard first; only then does
       // it mean "pause".
@@ -167,6 +186,26 @@ export class App {
     // return from a run.
     this.toTitle();
     installFavicon();
+  }
+
+  /**
+   * Unlock WebAudio on the first gesture *anywhere*, not just on the canvas.
+   *
+   * `Input` only listens on the play surface, and the title panel sits on top
+   * of it — so clicking Play, or How to play, or Leaderboard never reached it,
+   * and a player whose first action was a button (which is to say: every
+   * player) got a silent menu. Capture phase, so this runs before the button's
+   * own handler and the title track is already going by the time anything else
+   * happens.
+   *
+   * Kept attached rather than `once`, because the first attempt can still be
+   * refused; `unlock()` is a pair of cheap checks once the context is running.
+   */
+  private listenForFirstGesture(): void {
+    const unlock = () => void this.audio.unlock();
+    for (const type of ['pointerdown', 'keydown', 'touchstart'] as const) {
+      window.addEventListener(type, unlock, { capture: true, passive: true });
+    }
   }
 
   // -- lifecycle -----------------------------------------------------------
@@ -322,16 +361,58 @@ export class App {
    * cursor feel disconnected from the reticle.
    */
   private computeSteer(): void {
-    const aim = POINTER_AIM.enabled ? this.input.getPointerAim() : null;
-    if (aim && this.projectToFloor(aim.x, aim.y)) {
-      this.solveSteerToward(this.aimTarget.x, this.aimTarget.z);
-      return;
-    }
-
+    // Lean vector first — the fallback, and what the touch latch is derived
+    // from before it is latched.
     this.steerWorld.x =
       this.steerRight.x * this.input.steer.x + this.steerForward.x * this.input.steer.y;
     this.steerWorld.z =
       this.steerRight.z * this.input.steer.x + this.steerForward.z * this.input.steer.y;
+
+    if (!POINTER_AIM.enabled) return;
+
+    const floorY = this.game.floor.y;
+    // A change of floor invalidates the latch outright: different height,
+    // different extent, different grid.
+    if (this.aimLatchFloorY !== floorY) {
+      this.aimLatch = null;
+      this.aimLatchFloorY = floorY;
+    }
+    const inputMoved = this.input.aimSeq !== this.aimLatchSeq;
+
+    const aim = this.input.getPointerAim();
+    if (aim) {
+      // Mouse: the cursor is an absolute position, so a move re-projects it.
+      if ((inputMoved || this.aimLatch === null) && this.projectToFloor(aim.x, aim.y)) {
+        this.aimLatch = { x: this.aimTarget.x, z: this.aimTarget.z };
+        this.aimLatchSeq = this.input.aimSeq;
+      }
+    } else if (this.input.lastScheme === 'touch') {
+      // Touch is a relative drag, so there is no cursor to project. Instead,
+      // the moment the finger stops moving, whatever the drag was steering
+      // toward becomes the target and holds — which gives the thumb the same
+      // "it stays where I put it" as the mouse, without giving up the relative
+      // gesture that suits a thumb in the first place.
+      if (inputMoved) {
+        this.aimLatch = null;
+        this.aimLatchSeq = this.input.aimSeq;
+      } else if (this.aimLatch === null) {
+        const t = this.game.player.predictLanding(
+          this.steerWorld.x,
+          this.steerWorld.z,
+          this.landing,
+        );
+        if (Number.isFinite(t)) this.aimLatch = { x: this.landing.x, z: this.landing.z };
+      }
+    } else {
+      // Keyboard and gamepad stay pure leans. "Hold a direction and keep
+      // going" is what those controls mean, and latching would stop the player
+      // dead the moment they reached the tile they were heading for.
+      this.aimLatch = null;
+      this.aimLatchSeq = this.input.aimSeq;
+      return;
+    }
+
+    if (this.aimLatch) this.solveSteerToward(this.aimLatch.x, this.aimLatch.z);
   }
 
   /**

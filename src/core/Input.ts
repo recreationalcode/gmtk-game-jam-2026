@@ -55,6 +55,17 @@ export class Input {
   private lastUpdate = -1;
   private touchReleasedAt = -Infinity;
 
+  /**
+   * Bumped whenever the aiming input actually moves.
+   *
+   * The app latches a world-space target and only re-derives it when this
+   * changes. Without that, a stationary cursor still walks across the board:
+   * the same screen pixel maps to a different world point every frame as the
+   * camera falls, so the reticle drifts off the tile the player is pointing at
+   * while they are doing nothing at all.
+   */
+  aimSeq = 0;
+
   /** Callbacks fired on any input at all — used to unlock WebAudio. */
   readonly onAnyInput = new Set<() => void>();
   /** Fired on pause requests (Esc / P). */
@@ -198,13 +209,29 @@ export class Input {
   private onPointerMove(e: PointerEvent): void {
     if (e.pointerType === 'touch') {
       this.touchDetected = true;
+      const prev = this.activeTouches.get(e.pointerId);
       this.activeTouches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (this.touchId === e.pointerId) this.lastScheme = 'touch';
+      if (this.touchId === e.pointerId) {
+        this.lastScheme = 'touch';
+        const moved =
+          !prev ||
+          Math.abs(e.clientX - prev.x) > TOUCH_AIM_EPSILON_PX ||
+          Math.abs(e.clientY - prev.y) > TOUCH_AIM_EPSILON_PX;
+        if (moved) this.aimSeq++;
+      }
       return;
     }
     this.pointerInside = true;
-    this.pointerX = e.clientX / window.innerWidth;
-    this.pointerY = e.clientY / window.innerHeight;
+    const nx = e.clientX / window.innerWidth;
+    const ny = e.clientY / window.innerHeight;
+    // Sub-pixel jitter is not a move. Browsers emit pointermove for hover
+    // effects and sub-pixel scroll, and treating those as intent would defeat
+    // the latch entirely.
+    if (Math.abs(nx - this.pointerX) > AIM_EPSILON || Math.abs(ny - this.pointerY) > AIM_EPSILON) {
+      this.aimSeq++;
+    }
+    this.pointerX = nx;
+    this.pointerY = ny;
     if (this.lastScheme !== 'keyboard') this.lastScheme = 'pointer';
   }
 
@@ -416,6 +443,14 @@ export class Input {
 }
 
 /** Seconds the aim is held after a touch release, before it starts to decay. */
+/**
+ * How far an aiming input must move before it counts as a move, rather than as
+ * jitter the latch should ignore. Normalised for the mouse, pixels for touch —
+ * a fingertip resting on glass reports a couple of pixels of wander.
+ */
+const AIM_EPSILON = 0.0015;
+const TOUCH_AIM_EPSILON_PX = 2.5;
+
 const TOUCH_AIM_HOLD = 0.28;
 /** Decay rate once the hold expires, per second. */
 const TOUCH_COAST_RATE = 6;

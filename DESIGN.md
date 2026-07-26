@@ -103,8 +103,23 @@ proportional controller on the predicted landing, which would oscillate, since
 the prediction already depends on the steer being chosen. When the solution
 exceeds what the rider can do it saturates, so an unreachable tile reads as
 "as close as possible" instead of as the game ignoring you. Measured
-acquisition is one frame. Keyboard, gamepad and touch remain lean inputs —
-they have no cursor to point with.
+acquisition is one frame.
+
+**The target is latched in world space** and only re-derived when the input
+actually moves. Re-projecting the cursor every frame looks obviously right and
+is not: the camera falls with the rider, so the same screen pixel maps to a
+different world point each frame, and a player holding perfectly still watches
+the target walk off the tile they chose. Measured at 0.12 tiles of drift over
+half a second of falling — small on average, decisive whenever the target sits
+near a tile boundary, and *entirely* unasked for either way.
+
+Touch reaches the same property by a different route. There is no cursor to
+re-project, so the moment the thumb stops moving, whatever the drag was
+steering toward becomes the target and holds — the thumb keeps its relative
+gesture and gains the mouse's stickiness. Keyboard and gamepad stay pure leans:
+"hold a direction and keep going" is what those controls mean, and latching
+would stop the player dead the instant they reached the tile they were heading
+for.
 
 **Touch bounces on release, not on press.** A thumb holding and dragging to
 steer cannot simultaneously produce a new touch to time the bounce with — the
