@@ -6,6 +6,19 @@ import { Floor } from './game/Floor';
 import { Rand } from './core/Rand';
 import { TileKind } from './core/Config';
 import { tileLabel } from './game/Tile';
+import { ICON_NAMES, icon } from './ui/Icons';
+
+// Icon sheet. These are drawn as computed geometry with no reference art, so
+// seeing all of them side by side — on both button backgrounds, since they
+// inherit colour — is the only way to catch an arrowhead pointing the wrong way.
+const iconHost = document.getElementById('icons')!;
+iconHost.innerHTML = ICON_NAMES.map(
+  (name) =>
+    `<figure><div class="swatches">` +
+    `<span class="on-solid">${icon(name)}</span>` +
+    `<span class="on-ghost">${icon(name)}</span>` +
+    `</div><figcaption>${name}</figcaption></figure>`,
+).join('');
 
 const atlasHost = document.getElementById('atlas')!;
 const view = createAtlasPreview(128);

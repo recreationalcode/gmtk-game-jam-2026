@@ -39,6 +39,8 @@ npm run package      # build + verified itch.io zip in build/
 | `npm run leaderboard` | Regression: board reachable before playing, and Back/Escape routing |
 | `npm run coach` | Regression: tips fire once, carry tile art, persist across runs |
 | `npm run touch` | Regression: press aims, drag steers, release bounces |
+| `npm run tiles` | Regression: varied spawn values, out-of-phase decay, reset on leaving |
+| `npm run music` | Regression: title, match and post-run tracks all play, and differ |
 | `npm run aim` | Regression: the reticle goes where the cursor points, fast |
 | `npm run diag` | Screenshot the procedural glyphs, dump floor balance per depth |
 
@@ -61,7 +63,8 @@ ships in the real build, because the only performance numbers that matter are
 the ones measured on the device someone is actually holding.
 
 `debug.html` (dev server only, never built) previews the procedural glyphs and
-dumps floor composition per depth.
+the full UI icon sheet — on both button backgrounds, since the icons inherit
+colour — and dumps floor composition per depth.
 
 ---
 

@@ -47,6 +47,7 @@ No `.png`, `.jpg`, `.svg`, `.woff`, `.ttf`, `.mp3`, `.ogg`, `.wav`, `.glb` or
 | Particles | Point sprites with a procedural circular falloff | `src/render/Effects.ts` |
 | Landing reticle, horizon lattice | Generated line geometry | `src/render/Guides.ts` |
 | Colour palette | HSL computed per depth and per tile urgency | `src/render/Palette.ts` |
+| UI icons (26, all buttons and labels) | SVG paths computed from a shared 24-unit grid — arcs, polar stars, looped bars, no icon library | `src/ui/Icons.ts` |
 | Favicon | Drawn with Canvas2D at boot, injected as a data URI | `src/App.ts` |
 
 ### Typography
@@ -76,10 +77,13 @@ a runtime-generated white-noise buffer, and biquad filters in
 | Burnout | Short band-passed noise crackles |
 | Time / boost / freeze | Pentatonic arpeggios and clusters |
 | Clock tick | Filtered noise, pitch and level rising in the final ten seconds |
-| Music | Generative pentatonic sequencer — kick, bass, hats, arpeggio and pad, layered by depth, tempo driven by the clock |
+| Music (match) | Generative pentatonic sequencer — kick, bass, hats, arpeggio and pad, layered by depth, tempo driven by the clock |
+| Music (title) | Same voices, upbeat pattern — four-on-the-floor kick, synthesised backbeat clap, syncopated bass, chord stabs over i–VI–III–VII |
+| Music (post-run) | Same voices, chill pattern — long triangle pads, sparse filtered plucks, one soft kick a bar over i–iv–VI–III |
 
-The music is *composed by the code*, not performed, recorded or sampled from
-any source.
+All three pieces are *composed by the code*, not performed, recorded or sampled
+from any source. They share one scheduler and one set of synth voices; a track
+is a pattern function plus a tempo, a filter cutoff and a gain.
 
 ---
 

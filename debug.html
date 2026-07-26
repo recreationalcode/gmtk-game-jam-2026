@@ -24,6 +24,46 @@
         font-size: 12px;
         letter-spacing: 0.2em;
       }
+      /* Icon sheet: every procedural icon at once, on both button styles. */
+      #icons {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+        gap: 0.6rem;
+      }
+      #icons figure {
+        margin: 0;
+        padding: 0.6rem 0.3rem;
+        border: 1px solid #38e8ff33;
+        text-align: center;
+        background: #10131c;
+      }
+      #icons .swatches {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: center;
+        align-items: center;
+      }
+      #icons .on-solid {
+        background: #38e8ff;
+        color: #05060a;
+        padding: 0.35rem;
+        display: flex;
+      }
+      #icons .on-ghost {
+        border: 1px solid #38e8ff55;
+        color: #38e8ff;
+        padding: 0.35rem;
+        display: flex;
+      }
+      #icons svg {
+        width: 40px;
+        height: 40px;
+      }
+      #icons figcaption {
+        margin-top: 0.45rem;
+        color: #8b93a8;
+        font-size: 11px;
+      }
     </style>
   </head>
   <body>
@@ -31,6 +71,8 @@
       Dev-only diagnostics page. Vite's default build input is index.html, so
       this is never part of a production build or the itch.io zip.
     -->
+    <h2>UI ICONS (solid button ink / ghost button accent)</h2>
+    <div id="icons"></div>
     <h2>GLYPH ATLAS (cell index labelled)</h2>
     <div id="atlas"></div>
     <h2>FLOOR GENERATION BY DEPTH</h2>

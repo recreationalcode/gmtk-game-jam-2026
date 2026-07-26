@@ -111,6 +111,27 @@ body {
   letter-spacing: 0.22em;
   color: var(--ink-dim);
   text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+/* Slightly larger than the 0.62rem label they sit next to, or they vanish. */
+.hud-label .icon {
+  width: 1.5em;
+  height: 1.5em;
+  color: var(--accent);
+  opacity: 0.85;
+}
+
+.hud-tr .hud-label,
+.hud-br .hud-label {
+  flex-direction: row-reverse;
+}
+
+.hud.endgame .hud-tl .hud-label .icon {
+  color: var(--hostile);
+  opacity: 1;
 }
 
 .hud-value {
@@ -513,6 +534,34 @@ p {
   color: var(--ink);
 }
 
+/*
+ * Procedural icons (see ui/Icons.ts).
+ *
+ * Sized in `em` and coloured by `currentColor`, so one definition works on a
+ * solid button (dark ink on accent) and a ghost button (accent on nothing)
+ * without either knowing about the other, and every icon tracks the font size
+ * of the text it sits beside.
+ */
+.icon {
+  width: 1.3em;
+  height: 1.3em;
+  flex: 0 0 auto;
+  display: block;
+  overflow: visible;
+}
+
+.icon.big {
+  width: 3rem;
+  height: 3rem;
+}
+
+button.has-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55em;
+}
+
 button {
   font-family: var(--mono);
   font-size: 0.9rem;
@@ -522,7 +571,7 @@ button {
   color: var(--bg);
   background: var(--accent);
   border: 0;
-  padding: 0.85rem 1.2rem;
+  padding: 0.85rem 1rem;
   cursor: pointer;
   transition: transform 0.12s ease, filter 0.12s ease;
   pointer-events: auto;
@@ -556,7 +605,7 @@ button:focus-visible {
 }
 
 .button-row button {
-  flex: 1 1 8rem;
+  flex: 1 1 10.5rem;
 }
 
 input[type='text'] {
@@ -599,10 +648,20 @@ input[type='text']:focus {
 
 .keys {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.4rem 0.8rem;
+  grid-template-columns: auto auto 1fr;
+  gap: 0.5rem 0.7rem;
   font-size: 0.82rem;
-  align-items: baseline;
+  align-items: center;
+}
+
+.key-icon {
+  display: flex;
+  color: var(--accent);
+}
+
+.key-icon .icon {
+  width: 1.4rem;
+  height: 1.4rem;
 }
 
 kbd {
@@ -634,11 +693,20 @@ kbd {
 }
 
 .stat-grid div span {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
   font-size: 0.6rem;
   letter-spacing: 0.18em;
   color: var(--ink-dim);
   text-transform: uppercase;
+}
+
+.stat-grid div span .icon {
+  width: 1.5em;
+  height: 1.5em;
+  color: var(--accent);
 }
 
 .stat-grid div b {
@@ -678,6 +746,12 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 
+.board-row .rank .crown {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: #ffcc44;
+}
+
 .board-row .score {
   font-variant-numeric: tabular-nums;
   font-weight: 700;
@@ -691,6 +765,14 @@ kbd {
 
 .notice.warn {
   color: #ffb066;
+}
+
+.notice .icon {
+  width: 1.2em;
+  height: 1.2em;
+  display: inline-block;
+  vertical-align: -0.25em;
+  margin-right: 0.4em;
 }
 
 /* Boot screen */
@@ -757,6 +839,11 @@ kbd {
   padding: 2rem;
   pointer-events: auto;
   z-index: 10;
+}
+
+#rotate-hint .icon {
+  color: var(--accent);
+  margin: 0 auto 0.8rem;
 }
 
 @media (orientation: landscape) and (max-height: 380px) {

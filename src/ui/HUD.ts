@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { formatClock, formatScore } from '../core/MathUtil';
 import type { Input } from '../core/Input';
+import { icon } from './Icons';
 
 /**
  * The DOM overlay: clock, score, multiplier, depth, combo, and floating
@@ -43,19 +44,19 @@ export class HUD {
     hud.className = 'hud';
     hud.innerHTML = `
       <div class="hud-corner hud-tl">
-        <div class="hud-label">Time</div>
+        <div class="hud-label">${icon('clock')}Time</div>
         <div class="hud-value" id="hud-time">60.0</div>
       </div>
       <div class="hud-corner hud-tr">
-        <div class="hud-label">Score</div>
+        <div class="hud-label">${icon('star')}Score</div>
         <div class="hud-value" id="hud-score">0</div>
       </div>
       <div class="hud-corner hud-bl">
-        <div class="hud-label">Depth</div>
+        <div class="hud-label">${icon('depth')}Depth</div>
         <div class="hud-value small" id="hud-depth">0</div>
       </div>
       <div class="hud-corner hud-br">
-        <div class="hud-label">Multiplier</div>
+        <div class="hud-label">${icon('times')}Multiplier</div>
         <div class="hud-value mult" id="hud-mult">&times;1</div>
       </div>
       <div id="hud-combo"><span class="combo-text">PERFECT &times;1</span></div>
