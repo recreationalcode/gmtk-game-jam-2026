@@ -361,9 +361,28 @@ that costs a bounce to read gets skipped. Centred and near-stopped, a full toast
 costs well under a second of match clock, which is what makes it affordable to
 hold one long enough to actually read.
 
+**Tiles introduce themselves on sight, not on use.** The special tiles used to
+explain themselves from the events that fire when you *land* on one — so a
+player found out what a TIME tile was only after already having taken it, which
+is no help at all for a tile whose entire point is being spotted and detoured
+toward. They now announce when they first appear on the board, one at a time,
+and only while nothing else is on screen. DOWN and UP stay on their behavioural
+triggers: they are there from the first second and learned within a bounce, and
+announcing them at t=0 would be the wall of text this system exists to avoid.
+
+That "only while nothing else is on screen" is a boolean the app passes in — the
+one piece of presentation state these rules take. It replaced a timer, which
+would have had to declare which clock it was on: the simulated one runs at a
+tenth speed while a notice is up, which is exactly when the pacing matters.
+
 That only works if the player can end it. Every toast carries a **"Click / Tap
 to keep bouncing!"** prompt and a **draining bar** showing when it goes by
-itself — without those, slowing the world is something being done *to* the
+itself. The prompt stays hidden for the first 0.9s, and a press before then is
+ignored — otherwise the dismissal is far too eager to be useful: the player is
+mid-bounce when the notice appears, the click they had already committed to
+lands a few frames later, and the tip they never read is gone. Hold time is
+derived from the word count rather than fixed, so a three-word notice does not
+sit there and a two-sentence one is not rushed — without those, slowing the world is something being done *to* the
 player, with no stated way out and no idea how long it lasts. The press flows
 through to the bounce as normal; taking the input away to pay for the dismissal
 would mean the prompt cost you the thing it invited you to do.

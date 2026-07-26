@@ -35,6 +35,8 @@ export interface Notice {
   tone: NoticeTone;
   /** Higher wins when several are queued at once. */
   priority: number;
+  /** Seconds on screen. Omitted means "derive it from the length". */
+  holdSeconds?: number;
 }
 
 /** Per-notice lifetime show budget. */
@@ -99,6 +101,8 @@ export class Coach {
   private descended = false;
   /** UP tiles taken while still on the opening floor. */
   private surfaceUps = 0;
+  /** Tile kinds already introduced this run. */
+  private readonly kindsSeen = new Set<TileKind>();
 
   constructor(seen: SeenStore) {
     this.seen = seen;
@@ -114,6 +118,7 @@ export class Coach {
     this.runTime = 0;
     this.descended = false;
     this.surfaceUps = 0;
+    this.kindsSeen.clear();
   }
 
   drain(): Notice[] {
@@ -287,8 +292,18 @@ export class Coach {
     });
   }
 
-  /** Polled conditions — things defined by an *absence* of player action. */
-  update(dt: number, game: GameState): void {
+  /**
+   * Polled conditions — things defined by an *absence* of player action.
+   *
+   * @param notifierBusy whether a notice is already showing or queued. The one
+   * piece of presentation state this class takes, and it earns its place: a
+   * discovery landing on top of a descent's fanfare makes two toasts out of one
+   * moment. Expressed as "wait until the player has capacity" rather than as a
+   * timer, because a timer here would have to be told which clock it is on —
+   * the simulated one runs at a tenth speed while a notice is up, which is
+   * exactly when this matters.
+   */
+  update(dt: number, game: GameState, notifierBusy = false): void {
     const first = this.runTime === 0;
     this.runTime += dt;
 
@@ -298,7 +313,11 @@ export class Coach {
       this.push({
         id: 'intro:objective',
         title: `Score as much as you can in ${Math.round(CLOCK.matchSeconds)} seconds`,
-        body: 'Bounce on numbered tiles to collect them. Find the green tile to drop a floor — that is what makes everything worth more.',
+        body: 'Bounce on tiles to collect their numbers.',
+        // Short on purpose. It is the one notice that fires before the player
+        // has done anything, so it is the one most in the way — and the way
+        // down gets its own notice a few seconds later anyway.
+        holdSeconds: 3,
         tone: 'info',
         priority: 100,
       });
@@ -306,6 +325,8 @@ export class Coach {
 
     // Never teach during the endgame; it is already the busiest the game gets.
     if (game.endgame) return;
+
+    if (!notifierBusy) this.announceNewTiles(game);
 
     const stillNoTimedPress = this.timedPresses === 0;
     const strandedBelow =
@@ -364,6 +385,32 @@ export class Coach {
     }
   }
 
+  /**
+   * Introduce a tile kind the first time it is *on the board*, not the first
+   * time it is landed on.
+   *
+   * These used to fire from the gainTime/boost/freeze events, which meant the
+   * player found out what a TIME tile was only after already having used one —
+   * exactly backwards for tiles whose whole purpose is to be spotted and
+   * detoured toward. The use-events keep the same ids, so they now act as a
+   * fallback for the case where somebody lands on one before the notice lands.
+   */
+  private announceNewTiles(game: GameState): void {
+    if (this.kindsSeen.size >= DISCOVERABLE.length) return;
+
+    for (const tile of game.floor.tiles) {
+      if (this.kindsSeen.has(tile.kind)) continue;
+      const build = DISCOVERIES[tile.kind];
+      if (!build) continue;
+      this.kindsSeen.add(tile.kind);
+      this.push(build());
+      // One at a time. A floor carrying all three would otherwise queue three
+      // toasts at once, and the player meets them as a wall rather than as
+      // three separate discoveries.
+      return;
+    }
+  }
+
   /** @returns true if the notice was actually queued. */
   private push(notice: Notice): boolean {
     if (this.firedThisRun.has(notice.id)) return false;
@@ -378,6 +425,44 @@ export class Coach {
 }
 
 const EMPTY: Notice[] = [];
+
+/**
+ * Tiles worth introducing on sight.
+ *
+ * Only the specials. DOWN and UP are on the board from the first second and are
+ * learned within a bounce or two of playing; announcing them at t=0 would be
+ * the wall of text this system exists to avoid. These three are rare, unlock
+ * with depth, and are worth going out of your way for — which you cannot do if
+ * you do not know they are there.
+ */
+const DISCOVERIES: Partial<Record<TileKind, () => Notice>> = {
+  [TileKind.Time]: () => ({
+    id: 'tile:time',
+    title: `TIME tile — +${TIME_TILE_BONUS} seconds`,
+    body: 'There is one on this floor. The clock is the only thing you can actually run out of, so it is worth the detour.',
+    glyph: GLYPH_TIME,
+    tone: 'good',
+    priority: 72,
+  }),
+  [TileKind.Boost]: () => ({
+    id: 'tile:boost',
+    title: 'BOOST tile',
+    body: 'Multiplier +1 the moment you land on it, without having to find the way down.',
+    glyph: GLYPH_BOOST,
+    tone: 'good',
+    priority: 72,
+  }),
+  [TileKind.Freeze]: () => ({
+    id: 'tile:freeze',
+    title: 'FREEZE tile',
+    body: `Stops every countdown on the board for ${FREEZE.duration} seconds. Land on it, then farm hard.`,
+    glyph: GLYPH_FREEZE,
+    tone: 'good',
+    priority: 72,
+  }),
+};
+
+const DISCOVERABLE = Object.keys(DISCOVERIES);
 
 // Kept as plain numbers so this module stays free of render-layer imports.
 // They match src/render/GlyphAtlas.ts.

@@ -68,7 +68,17 @@ const awaitNotice = async (timeoutMs = 6000) => {
 const drain = async () => {
   const deadline = Date.now() + 40000;
   while (Date.now() < deadline) {
-    const busy = await page.evaluate(() => window.pogo.notifications.busy);
+    const busy = await page.evaluate(() => {
+      // Re-park while waiting. Draining takes seconds of real time, which is
+      // long enough for the rider to fall, land, and take a DOWN tile — moving
+      // the depth out from under whatever assertion comes next.
+      const g = window.pogo.game;
+      g.player.x = 0;
+      g.player.z = 0;
+      g.player.y = g.floor.y + 40;
+      g.player.vy = 6;
+      return window.pogo.notifications.busy;
+    });
     if (!busy) return;
     await page.waitForTimeout(150);
   }
@@ -106,9 +116,27 @@ const collector = (async () => {
 })();
 
 const titles = (list) => list.map((n) => n.title);
+
+/**
+ * Park the rider in the air.
+ *
+ * Left alone it plays itself, and a stray landing on a DOWN tile changes the
+ * depth out from under a scripted assertion — which showed up as an ascend
+ * from depth 2 producing "Multiplier ×2" and colliding with the descend
+ * notice of the same name.
+ */
+const hover = () =>
+  page.evaluate(() => {
+    const g = window.pogo.game;
+    g.player.x = 0;
+    g.player.z = 0;
+    g.player.y = g.floor.y + 40;
+    g.player.vy = 6;
+  });
 const find = (list, needle) => list.find((n) => n.title.includes(needle));
 
 const results = {};
+const failures = [];
 
 // The objective comes first, during the opening drop, before the clock starts.
 await page.waitForTimeout(2500);
@@ -120,7 +148,20 @@ results.opening = titles(shown);
 // escapable on demand, or a tip becomes something done *to* the player: the
 // world goes slow and there is no stated way out. Both halves are checked —
 // the prompt that offers it, and the press that takes it.
+const PROBE = {
+  id: 'test:probe',
+  title: 'Probe notice',
+  body: 'A deliberately ordinary notice, pushed straight into the queue so the timing measurements below do not depend on which coaching rule happens to be firing.',
+  tone: 'info',
+  priority: 120,
+};
+
+await hover();
 results.dismiss = await (async () => {
+  await page.evaluate((n) => window.pogo.notifications.push([n]), PROBE);
+  // Past MIN_VISIBLE_SECONDS, so the dismissal below is allowed to work.
+  await page.waitForTimeout(1300);
+
   const before = await page.evaluate(() => ({
     visible: document.getElementById('notice')?.classList.contains('visible') ?? false,
     prompt: document.querySelector('.notice-prompt')?.textContent?.trim() ?? '',
@@ -163,6 +204,7 @@ await drain();
 
 // Two UP tiles taken on the opening floor should bring the way-down hint
 // forward, well inside the ten-second patience window.
+await hover();
 for (let i = 0; i < 2; i++) {
   await page.evaluate((idx) => {
     const g = window.pogo.game;
@@ -222,12 +264,15 @@ results.hitstopWhileReadingMs = await (async () => {
 await drain();
 
 // Back up from a real depth: this one actually costs a multiplier.
-await page.evaluate(() => {
+await hover();
+results.depthBeforeAscend = await page.evaluate(() => {
   const g = window.pogo.game;
-  g.player.y = g.floor.y + 40;
   g.ascend(0, 0, g.floor.tiles[0]);
+  return g.depth;
 });
+await hover();
 await drain();
+await hover();
 
 // A time tile explains itself, twice over — the second must stay silent.
 await page.evaluate(() => window.pogo.game.gainTime(window.pogo.game.floor.tiles[0], 0, 0));
@@ -255,6 +300,86 @@ await page.evaluate(() => window.pogo.game.gainTime(window.pogo.game.floor.tiles
 await page.waitForTimeout(2500);
 results.shownSecondRun = titles([...shown]);
 
+// --- special tiles introduce themselves on sight ---------------------------
+//
+// Not on use. These fired from the gainTime/boost/freeze events, so a player
+// learned what a TIME tile was only after having already landed on one — no
+// help at all for a tile whose entire point is being spotted and detoured
+// toward. Jump to a depth where all three exist and check they announce.
+results.discovery = await (async () => {
+  // A clean slate: these are once-per-player notices, and the run above has
+  // already spent TIME's budget by landing on one. Discovery can only be
+  // tested on a tile the player has genuinely not met.
+  //
+  // The reload is load-bearing. `LocalSeenStore` reads localStorage once, in
+  // its constructor, and serves every later lookup from memory — so rewriting
+  // the key mid-session changes nothing at all.
+  await page.evaluate(() => {
+    const store = JSON.parse(localStorage.getItem('pogodrop.coach.v1') ?? '{}');
+    for (const id of ['tile:time', 'tile:boost', 'tile:freeze']) delete store[id];
+    localStorage.setItem('pogodrop.coach.v1', JSON.stringify(store));
+  });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(800);
+  await page.click('#screen-title button[data-act="play"]');
+  await page.waitForTimeout(1200);
+
+  await page.evaluate(() => {
+    const g = window.pogo.game;
+    g.player.y = g.floor.y + 40;
+    g.player.vy = 6;
+    for (let i = 0; i < 8; i++) g.descend(0, 0);
+    window.pogo.notifications.clear();
+  });
+  // The rule deliberately holds off for a beat after arriving on a floor, so
+  // a discovery does not land on top of the descent fanfare. Wait past it.
+  for (let i = 0; i < 6; i++) {
+    await page.evaluate(() => {
+      const g = window.pogo.game;
+      g.player.y = g.floor.y + 40;
+      g.player.vy = 6;
+    });
+    await page.waitForTimeout(450);
+  }
+  const kinds = await page.evaluate(() => {
+    const set = new Set(window.pogo.game.floor.tiles.map((t) => t.kind));
+    return { time: set.has(4), boost: set.has(5), freeze: set.has(6), depth: window.pogo.game.depth };
+  });
+  const seen = [];
+  const deadline = Date.now() + 40000;
+  // A notice cannot be dismissed until it has been up long enough to read, so
+  // this waits that window out rather than mashing dismiss at it.
+  let quiet = 0;
+  while (Date.now() < deadline) {
+    // Announcements are one per frame, so the queue goes briefly empty between
+    // them. Only a sustained silence means there is nothing left to say.
+    quiet = (await page.evaluate(() => window.pogo.notifications.busy)) ? 0 : quiet + 1;
+    if (seen.length > 0 && quiet >= 6) break;
+    const t = await page.evaluate(() => {
+      const el = document.getElementById('notice');
+      if (!el || !el.classList.contains('visible')) return null;
+      return el.querySelector('.notice-title')?.textContent ?? '';
+    });
+    if (t && !seen.includes(t)) seen.push(t);
+    await page.evaluate(() => {
+      const g = window.pogo.game;
+      g.player.y = g.floor.y + 40;
+      g.player.vy = 6;
+      window.pogo.notifications.dismiss();
+    });
+    await page.waitForTimeout(150);
+  }
+  return { kinds, seen };
+})();
+
+for (const [kind, label] of [['time', 'TIME'], ['boost', 'BOOST'], ['freeze', 'FREEZE']]) {
+  if (!results.discovery.kinds[kind]) continue; // not on this floor; nothing to announce
+  if (!results.discovery.seen.some((t) => t.includes(label))) {
+    failures.push(`${label} tiles were on the board but never introduced themselves`);
+  }
+}
+await drain();
+
 collecting = false;
 await collector;
 
@@ -269,7 +394,6 @@ const limits = {
   'tip:stuck': 2,
   'event:endgame': 2,
 };
-const failures = [];
 
 const duplicates = results.shownFirstRun.filter((t, i) => results.shownFirstRun.indexOf(t) !== i);
 if (duplicates.length > 0) failures.push(`repeated within a run: ${duplicates.join(', ')}`);
@@ -330,9 +454,13 @@ if (!results.shownFirstRun.some((t) => /Red arrows throw you back/.test(t))) {
 if (!results.shownFirstRun.includes('Multiplier ×1')) {
   failures.push('losing a multiplier to an UP tile was never called out');
 }
-// ...and the two must never both fire for one bounce.
-if (results.shownFirstRun.some((t) => /floor reset/i.test(t))) {
-  failures.push('the floor-reset tip stacked on top of the multiplier-loss notice');
+// ...and the two must never both fire for *one bounce*. A later ascend that
+// does not re-fire the multiplier notice is entitled to offer the reset tip.
+{
+  const i = results.shownFirstRun.indexOf('Multiplier ×1');
+  if (i >= 0 && /floor reset/i.test(results.shownFirstRun[i + 1] ?? '')) {
+    failures.push('the floor-reset tip stacked on top of the multiplier-loss notice');
+  }
 }
 // The first descent has to explain the floor, not just the number.
 {

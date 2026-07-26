@@ -405,6 +405,11 @@ body {
   transform: translate(-50%, -50%) scale(1);
 }
 
+/* The prompt only appears once pressing would actually end the notice. */
+#notice.dismissable .notice-prompt {
+  visibility: visible;
+}
+
 .notice-icon {
   width: 64px;
   height: 64px;
@@ -437,6 +442,7 @@ body {
  */
 .notice-prompt {
   margin-top: 0.7rem;
+  visibility: hidden;
   font-size: 0.78rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;

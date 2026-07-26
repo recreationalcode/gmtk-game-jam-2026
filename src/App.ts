@@ -325,7 +325,7 @@ export class App {
       const touch = this.input.touchDetected || COARSE_POINTER;
       this.coach.touchMode = touch;
       this.notifications.touchMode = touch;
-      this.coach.update(simDt, this.game);
+      this.coach.update(simDt, this.game, this.notifications.busy);
       this.notifications.push(this.coach.drain());
     } else if (this.phase === 'title') {
       this.game.stepIdle(simDt);
