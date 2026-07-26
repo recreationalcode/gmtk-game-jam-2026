@@ -436,7 +436,7 @@ export class App {
   // -- events --------------------------------------------------------------
 
   private readonly handleEvent = (e: GameEvent): void => {
-    this.coach.onEvent(e, this.game);
+    this.coach.onEvent(e);
     switch (e.type) {
       case 'land':
         this.onLand(e);

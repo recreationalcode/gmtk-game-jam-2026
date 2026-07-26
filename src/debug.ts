@@ -46,7 +46,7 @@ atlasHost.appendChild(note);
 // unlock depth and that every floor has a way down.
 const out: string[] = [];
 const rand = new Rand(12345);
-for (let depth = 0; depth <= 8; depth++) {
+for (const depth of [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14]) {
   const floor = new Floor(depth, rand, 0, 0);
   const counts = new Map<TileKind, number>();
   for (const t of floor.tiles) counts.set(t.kind, (counts.get(t.kind) ?? 0) + 1);

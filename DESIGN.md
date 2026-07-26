@@ -161,9 +161,10 @@ pressure ramps *within* a floor as well as across floors.
 Two governors keep that from running away, both added after the first pass made
 a floor unplayable within seconds:
 
-- **A hazard ceiling.** At most ~45% of a floor may be UP tiles at once. Past
-  that, burnouts go SPENT instead — dead weight rather than punishment. Decay
-  takes away opportunities; it does not stack up damage.
+- **A hazard ceiling.** A capped share of a floor may be UP tiles at once —
+  ~45% at the surface, rising with depth in step with the spawn share. Past it,
+  burnouts go SPENT instead: dead weight rather than punishment. Decay takes
+  away opportunities; it does not stack up damage.
 - **Leaving a floor resets it.** Up or down, the floor you arrive at has every
   number restored to a fresh value on a fresh clock, and anything that burned
   out is a number again. Without this, decay is a one-way ratchet and a single
@@ -202,6 +203,13 @@ rewards the player for buying altitude with a charged bounce.
 Floor `n` is an `S × S` grid where `S` grows with depth (4 → 10, capped). The
 world extent grows *sub-linearly*, so tiles shrink as you descend: more choices,
 smaller targets, tighter execution. Difficulty ramps without a difficulty knob.
+
+The *mix* ramps too. The UP-tile share climbs from 20% at the surface toward a
+44% cap, and the guaranteed floor under the number-tile count falls to let it.
+Without that, a deep floor was a shallow floor with more tiles on it — more
+crowded, not more dangerous — and descending was close to free points. Now the
+trade is real: a bigger multiplier on a board where stringing safe tiles
+together is genuinely harder.
 
 - **Descending** dissolves the current floor tile-by-tile in a radial wave from
   the down tile, revealing the next floor, and increments the multiplier.

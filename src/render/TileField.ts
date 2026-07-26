@@ -53,6 +53,7 @@ export class TileField {
         uGlobalTint: { value: new THREE.Color(1, 1, 1) },
         uBrightness: { value: 1 },
         uDownGlyph: { value: GLYPH.TIMES },
+        uUpGlyph: { value: GLYPH.UP },
       },
       vertexShader: VERT,
       fragmentShader: FRAG,
@@ -255,6 +256,7 @@ precision highp float;
 uniform sampler2DArray uAtlas;
 uniform float uTime;
 uniform float uDownGlyph;
+uniform float uUpGlyph;
 uniform float uBorder;
 uniform float uBrightness;
 uniform vec3 uFogColor;
@@ -335,8 +337,15 @@ void main() {
     col = vColor * 0.14;
   }
 
-  col *= uBrightness;
-  col *= uGlobalTint;
+  // The endgame grade is a mood, and moods must not eat information.
+  //
+  // Pushing every tile toward the hostile hue is exactly what the UP tile uses
+  // to *mean* "up", so at full endgame intensity the one distinction the player
+  // most needs — is that a number or a hazard? — was the one being washed out.
+  // Tiles whose colour is their identity keep it; the rest take the grade.
+  float identity = (vGlyph.x < -0.5 || abs(vGlyph.x - uUpGlyph) < 0.5) ? 1.0 : 0.0;
+  col *= mix(uBrightness, 1.0, identity * 0.75);
+  col *= mix(uGlobalTint, vec3(1.0), identity * 0.85);
 
   float f = 1.0 - exp(-pow(max(vFogDepth, 0.0) * uFogDensity, 2.0));
   col = mix(col, uFogColor, clamp(f, 0.0, 1.0));

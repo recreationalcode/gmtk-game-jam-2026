@@ -1,6 +1,5 @@
 import { CLOCK, FREEZE, TILE_DECAY, TIME_TILE_BONUS, TileKind } from '../core/Config';
-import type { GameEvent } from './GameState';
-import type { GameState } from './GameState';
+import type { GameEvent, GameState } from './GameState';
 
 /**
  * Decides *when* the player needs to be told something.
@@ -40,26 +39,43 @@ export interface Notice {
 
 /** Per-notice lifetime show budget. */
 const MAX_SHOWS: Record<string, number> = {
+  // The objective, not a tip. Shown on the first few runs and then assumed
+  // known — repeating it on someone's ninth attempt is noise, but a player who
+  // arrives from an itch.io page with no idea what this is needs it said once.
+  'intro:objective': 3,
   'tile:down': 2,
   'tile:up': 1,
   'tile:time': 1,
   'tile:boost': 1,
   'tile:freeze': 1,
   'tile:burnout': 1,
-  'tip:charge': 3,
+  'tip:charge': 4,
   'tip:perfect': 2,
   'tip:reset': 2,
   'tip:stuck': 2,
   'event:multiplier': Number.POSITIVE_INFINITY,
+  'event:multiplierLost': 2,
   'event:endgame': 2,
 };
 
 /** How many landings without a timed press before we mention it. */
 const CHARGE_HINT_AFTER_LANDINGS = 7;
+/**
+ * Backstop for the same tip: past the first floor, this long, still no timed
+ * press. The landing count normally fires first, but a player who got down a
+ * level without ever discovering the bounce is the one who most needs telling,
+ * and they should not be able to fall through the gap.
+ */
+const CHARGE_HINT_AFTER_SECONDS_BELOW_SURFACE = 20;
 /** How many charged bounces without a perfect before we mention the window. */
 const PERFECT_HINT_AFTER_CHARGED = 5;
-/** Seconds on the opening floor before we point out the way down. */
-const DOWN_HINT_AFTER_SECONDS = 6;
+/**
+ * Seconds on the opening floor before we point out the way down — or, sooner,
+ * this many UP tiles taken while still on it. Patient with someone exploring,
+ * quick with someone visibly struggling.
+ */
+const DOWN_HINT_AFTER_SECONDS = 10;
+const DOWN_HINT_AFTER_SURFACE_UPS = 2;
 
 export interface SeenStore {
   count(id: string): number;
@@ -81,6 +97,8 @@ export class Coach {
   private perfects = 0;
   private runTime = 0;
   private descended = false;
+  /** UP tiles taken while still on the opening floor. */
+  private surfaceUps = 0;
 
   constructor(seen: SeenStore) {
     this.seen = seen;
@@ -95,6 +113,7 @@ export class Coach {
     this.perfects = 0;
     this.runTime = 0;
     this.descended = false;
+    this.surfaceUps = 0;
   }
 
   drain(): Notice[] {
@@ -106,7 +125,16 @@ export class Coach {
 
   // -- rules ---------------------------------------------------------------
 
-  onEvent(e: GameEvent, game: GameState): void {
+  /**
+   * Takes no live game state, deliberately.
+   *
+   * Events are drained after the whole frame has simulated, so by the time a
+   * rule runs, `GameState` describes a later moment than the event does. That
+   * has already produced one wrong notice — a ×2 descent announced as "×1" —
+   * so everything a rule needs now travels on the event itself, and there is no
+   * live state here to reach for by mistake.
+   */
+  onEvent(e: GameEvent): void {
     switch (e.type) {
       case 'land':
         this.landings++;
@@ -115,16 +143,9 @@ export class Coach {
           this.chargedBounces++;
         }
         if (e.quality === 'perfect') this.perfects++;
-        if (e.kind === TileKind.Up) {
-          this.push({
-            id: 'tile:up',
-            title: 'That cost you a level',
-            body: 'Red arrows throw you back up and drop your multiplier. Give them a wide berth.',
-            glyph: GLYPH_UP,
-            tone: 'warn',
-            priority: 60,
-          });
-        }
+        // What an UP tile actually costs depends on where you were standing,
+        // and the land event does not know that. Handled under `ascend`, which
+        // does.
         break;
 
       case 'descend':
@@ -132,11 +153,10 @@ export class Coach {
         this.push({
           id: 'event:multiplier',
           title: `Multiplier ×${e.multiplier}`,
-          // The explanation is only worth saying while it is still news.
-          body:
-            this.seen.count('event:multiplier') < 2
-              ? `Every tile is now worth ${e.multiplier}× its number. Depth beats farming.`
-              : undefined,
+          // The explanation is only worth saying while it is still news, and
+          // the *first* descent has more to explain than the number: the floor
+          // under you is a different, bigger one now.
+          body: this.descendBody(e.multiplier, e.depth),
           multiplier: e.multiplier,
           tone: 'good',
           priority: 80,
@@ -144,15 +164,7 @@ export class Coach {
         break;
 
       case 'ascend':
-        if (e.depth > 0 || game.depth > 0) {
-          this.push({
-            id: 'tip:reset',
-            title: 'Burned tiles came back',
-            body: 'Changing level restores anything that decayed to zero on the floor you arrive at.',
-            tone: 'info',
-            priority: 55,
-          });
-        }
+        this.onAscend(e.from, e.multiplier);
         break;
 
       case 'burnout':
@@ -214,14 +226,91 @@ export class Coach {
     }
   }
 
+  /**
+   * What a descent is worth saying, which changes with how many you have made.
+   *
+   * The first one is not really about the number. The floor visibly fell away
+   * and a different, larger one took its place, and nothing else in the game
+   * tells the player that is what descending *is*.
+   */
+  private descendBody(multiplier: number, depth: number): string | undefined {
+    if (depth === 1) {
+      return `You are on a new floor — bigger, more tiles, smaller targets. Every tile down here is worth ${multiplier}× its number.`;
+    }
+    if (this.seen.count('event:multiplier') < 3) {
+      return `Every tile is now worth ${multiplier}× its number. Depth beats farming.`;
+    }
+    return undefined;
+  }
+
+  /**
+   * An UP tile does three different things depending on where you took it, and
+   * the player should be told the one that actually happened.
+   *
+   * @param from depth departed — 0 means the bounce was simply wasted
+   */
+  private onAscend(from: number, multiplier: number): void {
+    if (from === 0) {
+      this.surfaceUps++;
+      this.push({
+        id: 'tile:up',
+        title: 'Red arrows throw you back',
+        body: 'Up a level, and a multiplier with it. On the surface there is nowhere to go, so this one only cost you the bounce.',
+        glyph: GLYPH_UP,
+        tone: 'warn',
+        priority: 60,
+      });
+      return;
+    }
+
+    // A real loss. This is the first time the multiplier has ever gone *down*,
+    // and the HUD number dropping is easy to miss in the middle of being
+    // thrown a whole storey upward.
+    const lost = this.push({
+      id: 'event:multiplierLost',
+      title: `Multiplier ×${multiplier}`,
+      body: `An UP tile knocked you back a floor and took a multiplier with it. Every tile is worth ${multiplier}× now — get back down.`,
+      multiplier,
+      tone: 'warn',
+      priority: 82,
+    });
+
+    // Never both at once. They are about the same bounce, and the queue would
+    // spend seven seconds of a sixty-second run explaining it.
+    if (lost) return;
+    this.push({
+      id: 'tip:reset',
+      title: 'The floor reset',
+      body: 'Leaving a floor restores its numbers — anything that decayed to zero is a number again.',
+      tone: 'info',
+      priority: 55,
+    });
+  }
+
   /** Polled conditions — things defined by an *absence* of player action. */
   update(dt: number, game: GameState): void {
+    const first = this.runTime === 0;
     this.runTime += dt;
+
+    // The objective, before anything else. It fits in the opening drop, which
+    // is dead time the clock is not even counting yet.
+    if (first) {
+      this.push({
+        id: 'intro:objective',
+        title: `Score as much as you can in ${Math.round(CLOCK.matchSeconds)} seconds`,
+        body: 'Bounce on numbered tiles to collect them. Find the green tile to drop a floor — that is what makes everything worth more.',
+        tone: 'info',
+        priority: 100,
+      });
+    }
 
     // Never teach during the endgame; it is already the busiest the game gets.
     if (game.endgame) return;
 
-    if (this.landings >= CHARGE_HINT_AFTER_LANDINGS && this.timedPresses === 0) {
+    const stillNoTimedPress = this.timedPresses === 0;
+    const strandedBelow =
+      this.descended && this.runTime > CHARGE_HINT_AFTER_SECONDS_BELOW_SURFACE;
+    if (stillNoTimedPress && (this.landings >= CHARGE_HINT_AFTER_LANDINGS || strandedBelow)) {
       this.push({
         id: 'tip:charge',
         title: 'Try timing your bounce',
@@ -245,11 +334,13 @@ export class Coach {
       });
     }
 
-    if (!this.descended && this.runTime > DOWN_HINT_AFTER_SECONDS) {
+    const stuckOnSurface =
+      this.runTime > DOWN_HINT_AFTER_SECONDS || this.surfaceUps >= DOWN_HINT_AFTER_SURFACE_UPS;
+    if (!this.descended && stuckOnSurface) {
       this.push({
         id: 'tile:down',
-        title: 'Find the green tile',
-        body: 'It shows the multiplier it gives you. Landing on it drops you a floor — that is where the points are.',
+        title: `Land on the ×${game.multiplier + 1} tile`,
+        body: 'The green tile is the way down. Every floor has one, and dropping a floor multiplies everything you score after it.',
         multiplier: game.multiplier + 1,
         tone: 'info',
         priority: 95,
@@ -273,14 +364,16 @@ export class Coach {
     }
   }
 
-  private push(notice: Notice): void {
-    if (this.firedThisRun.has(notice.id)) return;
+  /** @returns true if the notice was actually queued. */
+  private push(notice: Notice): boolean {
+    if (this.firedThisRun.has(notice.id)) return false;
     const limit = MAX_SHOWS[notice.id] ?? 1;
-    if (this.seen.count(notice.id) >= limit) return;
+    if (this.seen.count(notice.id) >= limit) return false;
 
     this.firedThisRun.add(notice.id);
     this.seen.record(notice.id);
     this.pending.push(notice);
+    return true;
   }
 }
 

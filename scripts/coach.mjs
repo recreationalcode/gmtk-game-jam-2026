@@ -85,30 +85,58 @@ let collecting = true;
 const collector = (async () => {
   let last = null;
   while (collecting) {
-    const title = await page
+    const seen = await page
       .evaluate(() => {
         const el = document.getElementById('notice');
         if (!el || !el.classList.contains('visible')) return null;
-        return el.querySelector('.notice-title')?.textContent ?? '';
+        return {
+          title: el.querySelector('.notice-title')?.textContent ?? '',
+          body: el.querySelector('.notice-body')?.textContent ?? '',
+        };
       })
       .catch(() => null);
-    if (title && title !== last) {
-      shown.push(title);
-      last = title;
-    } else if (!title) {
+    if (seen?.title && seen.title !== last) {
+      shown.push(seen);
+      last = seen.title;
+    } else if (!seen) {
       last = null;
     }
     await page.waitForTimeout(50);
   }
 })();
 
+const titles = (list) => list.map((n) => n.title);
+const find = (list, needle) => list.find((n) => n.title.includes(needle));
+
 const results = {};
 
-// Idle on the opening floor long enough for the "way down" hint.
-await page.waitForTimeout(9000);
+// The objective comes first, during the opening drop, before the clock starts.
+await page.waitForTimeout(2500);
+results.opening = titles(shown);
+
+// Two UP tiles taken on the opening floor should bring the way-down hint
+// forward, well inside the ten-second patience window.
+for (let i = 0; i < 2; i++) {
+  await page.evaluate((idx) => {
+    const g = window.pogo.game;
+    g.player.y = g.floor.y + 40;
+    g.ascend(0, 0, g.floor.tiles[idx]);
+  }, i);
+  await page.waitForTimeout(400);
+}
+// Read this *before* draining. The seen-store records a notice the moment the
+// rule pushes it, so localStorage says when it fired; waiting for the queue to
+// empty would instead measure how long three toasts take to play, which is
+// almost exactly the ten-second fallback and made this assertion meaningless.
+await page.waitForTimeout(400);
+results.wayDownFiredAt = await page.evaluate(() => ({
+  simTime: window.pogo.game.simTime,
+  recorded: JSON.parse(localStorage.getItem('pogodrop.coach.v1') ?? '{}')['tile:down'] ?? 0,
+}));
+await drain();
 await page.screenshot({ path: path.join(OUT, 'notice-live.png') });
 
-// Descend: announces the new multiplier.
+// Descend: announces the new multiplier, and on the first one, the new floor.
 await page.evaluate(() => {
   const g = window.pogo.game;
   g.player.y = g.floor.y + 3;
@@ -117,7 +145,7 @@ await page.evaluate(() => {
 });
 await drain();
 
-// Back up: explains the refresh rule.
+// Back up from a real depth: this one actually costs a multiplier.
 await page.evaluate(() => {
   const g = window.pogo.game;
   g.player.y = g.floor.y + 40;
@@ -135,7 +163,8 @@ await drain();
 await page.waitForTimeout(1000);
 await drain();
 
-results.shownFirstRun = [...shown];
+results.shownFirstRun = titles([...shown]);
+results.bodies = Object.fromEntries(shown.map((n) => [n.title, n.body]));
 results.countsAfterFirstRun = await page.evaluate(() =>
   JSON.parse(localStorage.getItem('pogodrop.coach.v1') ?? '{}'),
 );
@@ -148,19 +177,61 @@ await page.click('#screen-pause button[data-act="restart"]');
 await page.waitForTimeout(1200);
 await page.evaluate(() => window.pogo.game.gainTime(window.pogo.game.floor.tiles[0], 0, 0));
 await page.waitForTimeout(2500);
-results.shownSecondRun = [...shown];
+results.shownSecondRun = titles([...shown]);
 
 collecting = false;
 await collector;
 
-const limits = { 'event:multiplier': Infinity, 'tip:charge': 3, 'tip:perfect': 2, 'tip:reset': 2, 'tip:stuck': 2, 'event:endgame': 2 };
+const limits = {
+  'event:multiplier': Infinity,
+  'event:multiplierLost': 2,
+  'intro:objective': 3,
+  'tile:down': 2,
+  'tip:charge': 4,
+  'tip:perfect': 2,
+  'tip:reset': 2,
+  'tip:stuck': 2,
+  'event:endgame': 2,
+};
 const failures = [];
 
 const duplicates = results.shownFirstRun.filter((t, i) => results.shownFirstRun.indexOf(t) !== i);
 if (duplicates.length > 0) failures.push(`repeated within a run: ${duplicates.join(', ')}`);
 
-if (!results.shownFirstRun.some((t) => t.includes('green tile'))) {
+// The objective must be the very first thing said, and must name the clock.
+if (results.opening[0] === undefined || !/Score as much as you can/i.test(results.opening[0])) {
+  failures.push(`the objective should open the run, got: ${results.opening[0] ?? 'nothing'}`);
+}
+
+if (!results.shownFirstRun.some((t) => /Land on the ×2 tile/.test(t))) {
   failures.push('the way-down hint never appeared');
+}
+// Two surface UP tiles should have pulled it in well before the 10s fallback.
+if (results.wayDownFiredAt.recorded === 0) {
+  failures.push('the way-down hint had not fired after two surface UP tiles');
+} else if (results.wayDownFiredAt.simTime >= 10) {
+  failures.push(
+    `the way-down hint fired at ${results.wayDownFiredAt.simTime.toFixed(1)}s — that is the timeout, not the repeated-UP trigger`,
+  );
+}
+if (!results.shownFirstRun.some((t) => /Red arrows throw you back/.test(t))) {
+  failures.push('taking an UP tile on the surface said nothing');
+}
+// Losing a multiplier for real is its own notice, and must not be confused
+// with the harmless surface case.
+if (!results.shownFirstRun.includes('Multiplier ×1')) {
+  failures.push('losing a multiplier to an UP tile was never called out');
+}
+// ...and the two must never both fire for one bounce.
+if (results.shownFirstRun.some((t) => /floor reset/i.test(t))) {
+  failures.push('the floor-reset tip stacked on top of the multiplier-loss notice');
+}
+// The first descent has to explain the floor, not just the number.
+{
+  const body = results.bodies['Multiplier ×2'] ?? '';
+  if (!/new floor/i.test(body)) {
+    failures.push(`the first descent should explain the new floor, said: "${body}"`);
+  }
 }
 if (!results.shownFirstRun.some((t) => t === 'Multiplier ×2')) {
   failures.push(
@@ -171,10 +242,20 @@ if (!results.shownFirstRun.some((t) => t.includes('seconds'))) {
   failures.push('the time-tile notice never appeared');
 }
 // A second run may legitimately surface notices whose trigger never came up
-// the first time. Only a repeat of something already taught is a failure.
-const repeated = results.shownSecondRun.filter((t) => results.shownFirstRun.includes(t));
+// the first time. Only a repeat of something already taught is a failure —
+// except for the handful with a deliberate multi-run budget, which are supposed
+// to come back. The objective is the clearest case: it is not a tip, it is what
+// the game is, and a player on their second attempt has still only seen it once.
+const REPEATS_BY_DESIGN = [/Score as much as you can/i];
+const repeated = results.shownSecondRun.filter(
+  (t) => results.shownFirstRun.includes(t) && !REPEATS_BY_DESIGN.some((re) => re.test(t)),
+);
 if (repeated.length > 0) {
   failures.push(`already-taught notices returned in a new run: ${repeated.join(', ')}`);
+}
+// And the positive half of that: the budgeted ones must actually still fire.
+if (!results.shownSecondRun.some((t) => /Score as much as you can/i.test(t))) {
+  failures.push('the objective did not repeat on the second run, but its budget allows it');
 }
 for (const [id, n] of Object.entries(results.countsAfterFirstRun)) {
   const limit = limits[id] ?? 1;

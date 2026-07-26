@@ -178,13 +178,24 @@ export class Floor {
   }
 
   private rollKind(rand: Rand, specials: Array<{ kind: TileKind; weight: number }>): TileKind {
-    const specialShare = Math.max(0, 1 - SPAWN_MIX.number - SPAWN_MIX.up);
+    const upShare = SPAWN_MIX.up(this.depth);
+    const specialShare = specials.length > 0 ? SPAWN_MIX.specials : 0;
     const roll = rand.next();
-    if (roll < SPAWN_MIX.number) return TileKind.Number;
-    if (roll < SPAWN_MIX.number + SPAWN_MIX.up) return TileKind.Up;
-    if (specials.length === 0 || specialShare <= 0) return TileKind.Number;
-    const pick = rand.weighted(specials.map((s) => s.weight));
-    return pick < 0 ? TileKind.Number : specials[pick]!.kind;
+    if (roll < upShare) return TileKind.Up;
+    if (roll < upShare + specialShare) {
+      const pick = rand.weighted(specials.map((s) => s.weight));
+      if (pick >= 0) return specials[pick]!.kind;
+    }
+    return TileKind.Number;
+  }
+
+  /** Ceiling on UP tiles, rising with depth in step with the spawn share. */
+  upCeiling(): number {
+    const fraction = Math.min(
+      TILE_DECAY.maxUpFractionCap,
+      TILE_DECAY.maxUpFraction + this.depth * TILE_DECAY.maxUpFractionPerDepth,
+    );
+    return Math.floor(this.tiles.length * fraction);
   }
 
   /**
@@ -238,7 +249,7 @@ export class Floor {
    * minimum number of scoring tiles so no seed produces a dead board.
    */
   private guaranteeSomeScoring(rand: Rand, entryGX: number, entryGY: number): void {
-    const target = Math.max(3, Math.floor(this.tiles.length * 0.35));
+    const target = Math.max(3, Math.floor(this.tiles.length * SPAWN_MIX.scoringFloor(this.depth)));
     let scoring = this.tiles.reduce((n, t) => n + (t.kind === TileKind.Number ? 1 : 0), 0);
     if (scoring >= target) return;
 
@@ -267,7 +278,7 @@ export class Floor {
   update(dt: number, decayScale: number, frozen: boolean): number {
     let burnedOut = 0;
     let upCount = this.countUp();
-    const upCeiling = Math.floor(this.tiles.length * TILE_DECAY.maxUpFraction);
+    const upCeiling = this.upCeiling();
 
     for (const tile of this.tiles) {
       if (tile.alive < 1) tile.alive = Math.min(1, tile.alive + dt * 3.2);

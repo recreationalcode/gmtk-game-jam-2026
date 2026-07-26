@@ -67,7 +67,7 @@ your view of the floor, and a wider view is how you find the way down.
 |---|---|
 | **Number** (a digit) | Scores its value × your multiplier. Then it is spent. |
 | **Down** (chevrons pointing down, green) | You bounce off it, the whole floor falls away, and you drop to the next one. **Multiplier +1.** |
-| **Up** (chevrons pointing up, red) | Throws you back to the floor above. **Multiplier −1.** |
+| **Up** (chevrons pointing up, red) | Throws you back to the floor above. **Multiplier −1.** Deeper floors have a lot more of them. |
 | **Spent** (a dim circle) | Already cashed, or burned out. Worth nothing, still in your way. |
 | **Time** (a clock, from depth −3) | **+4 seconds.** |
 | **Boost** (nested squares, from depth −5) | **Multiplier +1** without descending. |
@@ -92,9 +92,10 @@ one you were too slow to cash.
 
 Three things stop that from spiralling:
 
-1. **A floor can only get so hostile.** Once about 45% of it is UP tiles,
-   further burnouts go *dead* instead — worth nothing, but harmless. The board
-   runs out of opportunities before it becomes a minefield.
+1. **A floor can only get so hostile.** There is a ceiling on how much of a
+   floor may be UP tiles at once — about 45% at the surface, rising with depth.
+   Past it, further burnouts go *dead* instead: worth nothing, but harmless. The
+   board runs out of opportunities before it becomes a minefield.
 2. **Leaving a floor resets it.** Up *or* down: the moment you leave, every
    number on that floor goes back to a fresh value, and anything that burned
    out comes back as a number. Decay is recurring pressure, not permanent

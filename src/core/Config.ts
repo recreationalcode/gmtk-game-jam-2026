@@ -244,6 +244,12 @@ export const TILE_DECAY = {
    * should take your opportunities away, not stack up punishment.
    */
   maxUpFraction: 0.45,
+  /**
+   * The ceiling rises with depth alongside the spawn share, or burnouts on a
+   * deep floor would immediately hit a limit the generator had already spent.
+   */
+  maxUpFractionPerDepth: 0.012,
+  maxUpFractionCap: 0.6,
   /** Decay rate multiplier once the endgame starts. */
   endgameScale: 1.35,
   /**
@@ -304,12 +310,35 @@ export const SPECIAL_UNLOCK_DEPTH = {
  * so the authored mix stays generous.
  */
 export const SPAWN_MIX = {
-  number: 0.68,
-  up: 0.2,
+  /**
+   * Share of a floor that spawns as UP tiles, by depth.
+   *
+   * Deeper floors are meant to be more hostile, and until now they were only
+   * more *crowded* — the mix was flat, so a depth-10 board was a depth-0 board
+   * with more tiles on it. Growing the hazard share is what makes descending a
+   * real decision rather than strictly free points: you are trading a bigger
+   * multiplier for a board where the safe tiles are harder to string together.
+   *
+   * The `number` share is whatever is left after this and the specials.
+   */
+  up: (depth: number) => Math.min(0.44, 0.2 + depth * 0.03),
+  /** Share that spawns as specials, once any are unlocked. */
+  specials: 0.12,
   /** Remainder goes to whichever specials are unlocked. */
   timeWeight: 0.45,
   boostWeight: 0.35,
   freezeWeight: 0.2,
+
+  /**
+   * Floor under the number-tile count, as a fraction of the board.
+   *
+   * Falls with depth so the rising hazard share above can actually take effect
+   * — a flat 35% floor would simply undo it. It stays a floor, though: a board
+   * with nothing worth landing on is not difficult, it is just a dead end. In
+   * absolute terms the deeper floors still have far more scoring tiles, because
+   * they have far more tiles.
+   */
+  scoringFloor: (depth: number) => Math.max(0.2, 0.35 - depth * 0.015),
 
   /** Down tiles are placed explicitly, not rolled. */
   downTiles: (depth: number) => (depth >= 4 ? 2 : 1),

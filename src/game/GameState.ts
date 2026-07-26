@@ -33,7 +33,10 @@ export type GameEvent =
   // a later landing may already have changed it again — reading the live value
   // reports the wrong number for the event being handled.
   | { type: 'descend'; depth: number; multiplier: number; x: number; z: number }
-  | { type: 'ascend'; depth: number; multiplier: number; x: number; z: number }
+  // `from` is the depth departed. Ascending from the surface goes nowhere and
+  // costs no multiplier, and the resulting event is otherwise indistinguishable
+  // from a real one — both report depth 0.
+  | { type: 'ascend'; depth: number; from: number; multiplier: number; x: number; z: number }
   | { type: 'burnout'; count: number }
   | { type: 'gainTime'; amount: number; x: number; z: number }
   | { type: 'boost'; multiplier: number; x: number; z: number }
@@ -362,10 +365,11 @@ export class GameState {
       tile.kind = TileKind.Spent;
       this.player.launchToApex(ascendApex() * 0.5);
       this.addShake(FEEL.shakeOnAscend * 0.5);
-      this.events.push({ type: 'ascend', depth: 0, multiplier: this.multiplier, x, z });
+      this.events.push({ type: 'ascend', depth: 0, from: 0, multiplier: this.multiplier, x, z });
       return;
     }
 
+    const from = this.depth;
     this.depth--;
     this.multiplier = Math.max(SCORE.minMultiplier, this.multiplier - SCORE.multiplierPerDepth);
 
@@ -377,7 +381,7 @@ export class GameState {
 
     this.hitstop = Math.max(this.hitstop, FEEL.hitstopAscend);
     this.addShake(FEEL.shakeOnAscend);
-    this.events.push({ type: 'ascend', depth: this.depth, multiplier: this.multiplier, x, z });
+    this.events.push({ type: 'ascend', depth: this.depth, from, multiplier: this.multiplier, x, z });
   }
 
   private gainTime(tile: Tile, x: number, z: number): void {
