@@ -36,6 +36,53 @@ bottom, tracking `PALETTE.depthHues` — cool at the surface, deep violet at the
 bottom. Scrolling the page is the gesture the game is about. If you rewrite the
 theme, keep that.
 
+## Art
+
+Generated, not drawn — `npm run art` writes all four into `docs/itch/`. The
+palette is parsed out of `PALETTE` in `src/core/Config.ts` at generation time, so
+retuning the game's colours and re-running is all it takes for the page to
+follow; there is no hand-picked PNG to go stale.
+
+| File | Where it goes | Size |
+|---|---|---|
+| `cover-630x500.png` | Edit game → **Cover image** | 330 kB |
+| `banner-1920x480.jpg` | First image in the page description | 151 kB |
+| `background-1920x1080.jpg` | `--pd-page-image` in the stylesheet | 169 kB |
+| `embed-bg.gif` | `--pd-embed-image`, or `--pd-page-image` for the whole page | 1.72 MB |
+
+All four are the same scene: an infinite shaft of identical floors falling away
+through the hole in the middle of the one above, each floor a different depth
+hue. That is the game — `depthHues` is indexed by depth and the board's
+structure does not change as you descend, only its colour does.
+
+Two numbers in there are derived rather than chosen, and both matter if you
+retune it. The ratio between floors is exactly the factor that drops the next
+floor into the hole in this one, so widening the hole brings more of the descent
+into view. And the hue advances slower than one entry per floor: at a full entry
+the four visible floors are four different colours, which is a rainbow, not a
+descent.
+
+The GIF is a single seamless loop — 40 frames, 4 seconds, one floor-to-floor
+zoom. `npm run art` asserts that frame 0 and the wrap-around frame are
+pixel-identical and fails if they are not, because a seam is a twitch every four
+seconds behind the game and it is not something a glance at the first few frames
+would catch.
+
+**Wiring the two CSS ones up.** itch only gives you a URL once a file is on its
+server, so: open the description editor, use its image button to upload, copy the
+`img.itch.zone` address it inserts, then delete the inserted image. Paste the
+address into the commented-out block at the top of
+[`itch-theme.css`](itch-theme.css). They cannot go in the theme editor's
+background picker — the stylesheet sets `background-image` for the descent
+gradients and custom CSS applies after the editor's own, so a picked image would
+be overridden.
+
+**The GIF is the heaviest thing on the page**, by a factor of ten over the game
+it decorates — `pogo-drop-itch.zip` is 184 kB. It is the first thing to drop if
+the page feels slow, and the static background covers the same ground for a tenth
+of the weight. `scripts/page-art.mjs` has the frame count, dimensions and palette
+size as tunables at the top of the `embed` entry if you want a different trade.
+
 ## Embed settings
 
 | Setting | Value | Why |

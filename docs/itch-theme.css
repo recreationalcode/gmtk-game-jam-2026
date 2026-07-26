@@ -35,6 +35,25 @@
 
   --pd-hair: #38e8ff2e;
   --pd-glow: 0 0 24px #38e8ff33;
+
+  /* ---------------------------------------------------------------------
+   * Uploaded art. Paste the itch URLs here after uploading — itch rewrites
+   * anything you upload to an img.itch.zone address, which it only gives you
+   * once the file is on their server, so these cannot be filled in ahead of
+   * time. Leave either unset and the page falls back to gradients alone.
+   *
+   *   --pd-page-image   docs/itch/background-1920x1080.jpg, or embed-bg.gif
+   *                     for the animated version
+   *   --pd-embed-image  embed-bg.gif, if you want the motion only in a band
+   *                     around the game rather than across the whole page
+   *
+   * These have to live in CSS rather than in the theme editor's background
+   * image picker: the body rule below sets background-image for the descent
+   * gradients, and custom CSS is applied after the editor's own, so a picked
+   * image would be overridden. Layering it here keeps both.
+   * ------------------------------------------------------------------ */
+  /* --pd-page-image: url("https://img.itch.zone/.../background-1920x1080.jpg"); */
+  /* --pd-embed-image: url("https://img.itch.zone/.../embed-bg.gif"); */
 }
 
 /* --- The shaft -----------------------------------------------------------
@@ -44,9 +63,14 @@
  */
 body {
   background-color: var(--pd-bg);
+  /* Gradients first so they sit *over* the uploaded image, which is what keeps
+     the descent reading top to bottom even with art behind it. */
   background-image:
     radial-gradient(120% 60% at 50% -10%, #38e8ff1f 0%, transparent 60%),
-    radial-gradient(140% 70% at 50% 110%, #7e20e924 0%, transparent 62%);
+    radial-gradient(140% 70% at 50% 110%, #7e20e924 0%, transparent 62%),
+    var(--pd-page-image, none);
+  background-size: auto, auto, cover;
+  background-position: center, center, center center;
   background-attachment: fixed;
   background-repeat: no-repeat;
   color: var(--pd-ink);
@@ -159,6 +183,27 @@ h1.game_title,
 .game_frame iframe {
   display: block;
   background: var(--pd-bg);
+}
+
+/* The animated surround.
+ *
+ * itch has no "background image for the embed" setting, and there is nowhere
+ * useful to put one *behind* the frame — the game renders an opaque #05060a, so
+ * anything under it is hidden by definition. What works is a band around the
+ * frame: pad the embed's container, put the GIF on the container, and the game
+ * sits in the middle of a moving shaft.
+ *
+ * Only applies once --pd-embed-image is set. If the selector does not match
+ * your page (itch's embed markup varies with the project's kind), setting
+ * --pd-page-image to the GIF instead animates the whole page background, which
+ * needs no selector at all. */
+.html_embed_widget,
+.embed_wrapper {
+  background-image: var(--pd-embed-image, none);
+  background-size: cover;
+  background-position: center;
+  padding: clamp(10px, 3vw, 44px);
+  border-radius: 6px;
 }
 
 /* --- Buttons -----------------------------------------------------------

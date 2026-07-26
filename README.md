@@ -44,6 +44,7 @@ See [Shipping to itch.io](#shipping-to-itchio).
 | `npm run preview` | Serve `dist/` |
 | `npm run package` | Build, verify the layout, and zip for itch.io |
 | `npm run build:vercel` | What Vercel runs: `build`, then the same zip into `dist/` |
+| `npm run art` | Regenerate the itch.io page art from `PALETTE` into `docs/itch/` |
 | `npm run smoke` | Headless Chromium: boot, play, screenshot, report errors |
 | `npm run fullrun` | Headless full match: endgame ramp → score screen → submit |
 | `npm run transitions` | Regression: every floor stays renderable across descend/ascend |
@@ -122,9 +123,10 @@ Uploading: attach the zip, tick **This file will be played in the browser**, and
 set the embed to at least 960x640. The game is responsive and handles
 fullscreen, so the embed size is a floor rather than a target.
 
-The page around it — theme, the rest of the embed settings, what the description
-needs to say — is [`docs/ITCH.md`](docs/ITCH.md), with a ready-to-paste
-stylesheet in [`docs/itch-theme.css`](docs/itch-theme.css).
+The page around it — theme, art, the rest of the embed settings, what the
+description needs to say — is [`docs/ITCH.md`](docs/ITCH.md), with a ready-to-paste
+stylesheet in [`docs/itch-theme.css`](docs/itch-theme.css) and the cover, banner,
+background and animated surround in [`docs/itch/`](docs/itch).
 
 ---
 

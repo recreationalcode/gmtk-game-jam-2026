@@ -12,6 +12,7 @@
     "preview": "vite preview --host",
     "typecheck": "tsc --noEmit",
     "package": "npm run build && node scripts/package-itch.mjs",
+    "art": "node scripts/page-art.mjs",
     "smoke": "node scripts/smoke.mjs",
     "diag": "node scripts/diag.mjs",
     "fullrun": "node scripts/fullrun.mjs",
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@types/three": "^0.185.1",
+    "gifenc": "^1.0.3",
     "playwright": "^1.62.0",
     "typescript": "^5.9.3",
     "vite": "^8.1.5"
