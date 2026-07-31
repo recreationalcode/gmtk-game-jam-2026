@@ -37,13 +37,23 @@ const arg = (name, fallback) => {
 };
 
 const FPS = arg('fps', 60);
-const SECONDS = arg('seconds', 14);
+const SECONDS = arg('seconds', 13);
 const WIDTH = arg('width', 1280);
 const HEIGHT = arg('height', 720);
 /** Virtual seconds of bot play before recording, to reach a deeper floor. */
-const WARMUP = arg('warmup', 26);
+const WARMUP = arg('warmup', 30);
 /** Clock left when recording starts, so the endgame ramp lands in shot. */
 const CLOCK_AT_START = arg('clock', 21);
+/**
+ * Frames to drop from the front at encode time.
+ *
+ * The first frame is the thumbnail everywhere this gets posted, and the camera
+ * tracks the rider rather than the board — so whether the opening frame is a
+ * full bleed of tiles or a board shoved into one corner with dead space beside
+ * it is luck. Shooting a little extra and trimming to a good one is cheaper
+ * than re-running the whole capture to re-roll it.
+ */
+const SKIP = arg('skip', 100);
 
 const FRAMES = Math.round(FPS * SECONDS);
 const OUT = path.join(ROOT, 'build', 'capture');
@@ -284,6 +294,7 @@ execFileSync(
   [
     '-y',
     '-framerate', String(FPS),
+    '-start_number', String(SKIP),
     '-i', path.join(FRAME_DIR, 'f%05d.jpg'),
     // yuv420p and even dimensions, or the file will not play on iOS or in an
     // X timeline. -movflags +faststart puts the index first so it starts
@@ -305,9 +316,10 @@ console.log(
     {
       mp4: path.relative(ROOT, MP4),
       megabytes: +(bytes / 1024 / 1024).toFixed(2),
-      frames: FRAMES,
+      frames: FRAMES - SKIP,
       fps: FPS,
-      seconds: +(FRAMES / FPS).toFixed(1),
+      seconds: +((FRAMES - SKIP) / FPS).toFixed(1),
+      skippedFromFront: SKIP,
       resolution: `${WIDTH}x${HEIGHT}`,
       runAtEnd: final,
       pageErrors: errors.length,
