@@ -24,7 +24,8 @@
     "themes": "node scripts/themes.mjs",
     "bounce": "node scripts/bounce.mjs",
     "music": "node scripts/music.mjs",
-    "aim": "node scripts/aim.mjs"
+    "aim": "node scripts/aim.mjs",
+    "capture": "node scripts/capture.mjs"
   },
   "devDependencies": {
     "@types/three": "^0.185.1",
